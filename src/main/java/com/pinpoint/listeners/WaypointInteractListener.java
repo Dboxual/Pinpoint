@@ -12,9 +12,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class WaypointInteractListener implements Listener {
 
@@ -51,7 +49,7 @@ public class WaypointInteractListener implements Listener {
             }
         }
 
-        // Right-click air or block with Waypoint Pearl (but not onto a waypoint block handled above)
+        // Right-click air or block with Waypoint Pearl → open hub GUI
         ItemStack item = event.getItem();
         if (item == null || !plugin.getItemManager().isWaypointPearl(item)) return;
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
@@ -82,32 +80,12 @@ public class WaypointInteractListener implements Listener {
             return;
         }
 
-        // Shift+right-click player → party link request
         if (player.isSneaking()) {
+            // Shift+right-click player → party link request
             plugin.getPartyGuiManager().sendLinkRequest(player, target);
-            return;
+        } else {
+            // Regular right-click player → open hub GUI (same as right-clicking air)
+            plugin.getGuiManager().openHubGui(player, null);
         }
-
-        // Regular right-click player → waypoint invite (existing behaviour)
-        if (!plugin.getConfig().getBoolean("settings.allow-recall-orb-invites", true)) {
-            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("recall-orb-invites-disabled"));
-            return;
-        }
-
-        List<Waypoint> invitable = plugin.getWaypointManager()
-                .getAccessibleWaypoints(player.getUniqueId());
-
-        if (plugin.getConfig().getBoolean("settings.require-owner-for-orb-invites", true)) {
-            invitable = invitable.stream()
-                    .filter(wp -> wp.isOwner(player.getUniqueId()))
-                    .collect(Collectors.toList());
-        }
-
-        if (invitable.isEmpty()) {
-            player.sendMessage(plugin.msg("prefix") + "§cYou have no waypoints you can invite players to.");
-            return;
-        }
-
-        plugin.getGuiManager().openInviteSelectGui(player, target, invitable);
     }
 }

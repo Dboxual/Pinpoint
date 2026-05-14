@@ -223,7 +223,7 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        plugin.getTeleportHelper().teleport(player, wpOpt.get());
+        plugin.getTeleportHelper().partyFollow(player, wpOpt.get(), offer.travelerName);
     }
 
     // --- Stay (dismiss travel offer) ---

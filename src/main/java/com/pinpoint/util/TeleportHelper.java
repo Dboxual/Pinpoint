@@ -64,6 +64,16 @@ public class TeleportHelper {
         pt.taskId = taskId;
     }
 
+    /**
+     * Party-follow teleport: skips the normal countdown and hold-still requirement.
+     * A 1-second delay gives the "traveling together" feeling without the full queue.
+     */
+    public void partyFollow(Player player, Waypoint wp, String travelerName) {
+        player.sendMessage(plugin.msg("prefix") + "§aTraveling with §b" + travelerName + "§a...");
+        plugin.getServer().getScheduler().runTaskLater(plugin,
+                () -> doTeleport(player, wp), 20L);
+    }
+
     // --- Internal: immediate teleport (called after countdown elapses) ---
 
     public void doTeleport(Player player, Waypoint wp) {
