@@ -1,0 +1,30 @@
+settings:
+  # Default teleport fee (0 = free)
+  default-fee: 0
+  # Safe teleport search radius
+  safe-teleport-radius: 5
+  # Recall orb use cooldown in seconds
+  recall-orb-cooldown: 3
+  # Invite timeout in seconds
+  invite-timeout: 60
+
+messages:
+  prefix: "&8[&bWaypoints&8] &r"
+  no-permission: "&cYou don't have permission to do that."
+  waypoint-named: "&aWaypoint '%s' has been created!"
+  waypoint-teleported: "&aTeleported to waypoint &b%s&a."
+  fee-charged: "&aCharged &e%s&a for teleport."
+  fee-insufficient: "&cYou need &e%s&c to teleport there."
+  vault-missing: "&eVault not found - fee system disabled."
+  invite-sent: "&aInvite sent to &b%s&a."
+  invite-received: "&b%s &ahas invited you to teleport to &b%s&a. Type &e/waypoint accept &aor &e/waypoint deny&a."
+  invite-accepted: "&a%s accepted your invite."
+  invite-denied: "&c%s denied your invite."
+  invite-expired: "&cYour invite has expired."
+  no-pending-invite: "&cYou have no pending invite."
+  recall-orb-created: "&aRecall Orb created for waypoint &b%s&a."
+  not-owner: "&cOnly the owner can do that."
+  waypoint-not-found: "&cWaypoint not found."
+  name-prompt: "&eType the waypoint name in chat (30 seconds):"
+  name-too-long: "&cName must be 32 characters or less."
+  name-empty: "&cName cannot be empty."

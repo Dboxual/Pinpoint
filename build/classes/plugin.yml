@@ -1,0 +1,24 @@
+name: WaypointSystem
+version: '${version}'
+main: com.waypointsystem.WaypointPlugin
+api-version: '1.21'
+description: Geyser-compatible craftable waypoint system
+authors: [WaypointSystem]
+softdepend: [Vault, Geyser-Spigot]
+
+commands:
+  waypoint:
+    description: Main waypoint command
+    usage: /waypoint [accept|deny|reload|give]
+    aliases: [wp]
+
+permissions:
+  waypointsystem.use:
+    description: Allows using waypoints
+    default: true
+  waypointsystem.admin:
+    description: Admin commands
+    default: op
+  waypointsystem.give:
+    description: Give waypoint items to players
+    default: op
