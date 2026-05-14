@@ -1,5 +1,5 @@
 name: Pinpoint
-version: '1.0.8'
+version: '1.1.0'
 main: com.pinpoint.PinpointPlugin
 api-version: '1.21'
 description: Geyser-compatible craftable waypoint system
@@ -16,8 +16,19 @@ commands:
       /waypoint deny      - Deny a pending teleport invite
       /waypoint reload    - Reload config and data (admin)
       /waypoint give <player> waypoint [amount]
-      /waypoint give <player> orb <name|id> [amount]
+      /waypoint give <player> pearl [amount]
     aliases: [wp]
+  party:
+    description: Party/social linking system
+    usage: |
+      /party              - Open party management GUI
+      /party leave        - Leave your current party
+      /party disband      - Disband the whole party
+      /party remove <player> - Remove a member from the party
+      /party accept       - Accept a pending link request
+      /party deny         - Deny a pending link request
+      /party follow       - Follow your party's latest travel
+    aliases: [pp]
 
 permissions:
   waypoint.use:
@@ -38,3 +49,6 @@ permissions:
     children:
       waypoint.give: true
       waypoint.reload: true
+  party.use:
+    description: Use the party/social linking system
+    default: true

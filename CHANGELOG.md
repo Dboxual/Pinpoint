@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.1.0 — 2026-05-14
+### Added
+- **Party system** — persistent social linking between players. Shift+right-click another player with a Waypoint Pearl to send a link request. The receiver gets an Accept/Deny GUI. Accepting merges both players (and any parties they're already in) into one connected group. All members are equal — no ownership hierarchy.
+- **Party merging** — A↔B + B↔C automatically creates A↔B↔C. If two separate parties link, all members merge into one party.
+- **Travel notifications** — when any party member teleports through a Pinpoint, all online party members receive a clickable chat notification with **[Follow]** (teleports them to the same waypoint) and **[Stay]** buttons. Follow offer expires after `party-travel-offer-timeout` seconds (default 30). Bedrock players can type `/party follow` with no arguments to follow the most recent offer.
+- **Party management GUI** — `/party` opens a GUI showing all member heads (click a non-self member to remove them), Leave Party, and Disband Party buttons.
+- **`/party` command** (alias `/pp`) — subcommands: `leave`, `disband`, `remove <player>`, `accept`, `deny`, `follow [id]`, `stay`.
+- **`parties.yml`** — party data persisted across restarts.
+- Two new config keys: `link-request-timeout` (default 60s) and `party-travel-offer-timeout` (default 30s).
+- Updated Waypoint Pearl lore to document shift+right-click behaviour.
+
+### Changed
+- Shift+right-click a player with Waypoint Pearl now sends a party link request instead of doing nothing.
+- Regular right-click player with Waypoint Pearl still opens the waypoint invite GUI (unchanged).
+
+---
+
 ## v1.0.8 — 2026-05-14
 ### Changed
 - **Plugin renamed to Pinpoint** — package changed from `com.waypointsystem` to `com.pinpoint`, main class renamed from `WaypointPlugin` to `PinpointPlugin`. All gameplay commands, permissions, and data files are unchanged.

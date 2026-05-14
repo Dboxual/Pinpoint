@@ -82,6 +82,13 @@ public class WaypointInteractListener implements Listener {
             return;
         }
 
+        // Shift+right-click player → party link request
+        if (player.isSneaking()) {
+            plugin.getPartyGuiManager().sendLinkRequest(player, target);
+            return;
+        }
+
+        // Regular right-click player → waypoint invite (existing behaviour)
         if (!plugin.getConfig().getBoolean("settings.allow-recall-orb-invites", true)) {
             player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("recall-orb-invites-disabled"));
             return;

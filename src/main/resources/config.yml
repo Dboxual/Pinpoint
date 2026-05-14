@@ -15,6 +15,10 @@ settings:
   require-owner-for-orb-invites: true
   # Seconds before a pending teleport invite expires.
   invite-timeout: 60
+  # Seconds before a party link request expires.
+  link-request-timeout: 60
+  # Seconds party members have to click [Follow] after a Pinpoint travel notification.
+  party-travel-offer-timeout: 30
 
 messages:
   prefix: "&8[&bWaypoints&8] &r"

@@ -2,17 +2,22 @@
 # Quick build script — compiles sources and packages the jar
 set -e
 BASE="$(cd "$(dirname "$0")" && pwd)"
-LIBS="$BASE/libs"
-OUT="$BASE/build/classes"
-JAR="$BASE/build/Pinpoint-1.0.8.jar"
+# On Git Bash / Windows, javac needs Windows-style paths (C:/...).
+# pwd -W returns the Windows form; fall back to pwd if unavailable.
+BASE_WIN="$(cd "$(dirname "$0")" && pwd -W 2>/dev/null || pwd)"
+LIBS="$BASE_WIN/libs"
+OUT="$BASE_WIN/build/classes"
+JAR="$BASE_WIN/build/Pinpoint-1.1.0.jar"
 
-rm -rf "$OUT" && mkdir -p "$OUT"
-find "$BASE/src/main/java" -name "*.java" > "$BASE/build/sources.txt"
+rm -rf "$BASE/build/classes" && mkdir -p "$BASE/build/classes"
+find "$BASE/src/main/java" -name "*.java" \
+    | sed 's|^/\([a-zA-Z]\)/|\1:/|' \
+    > "$BASE/build/sources.txt"
 
-CP="$LIBS/paper-api.jar:$LIBS/vault-api.jar:$LIBS/adventure-api.jar:$LIBS/adventure-key.jar:$LIBS/jetbrains-annotations.jar:$LIBS/guava.jar:$LIBS/examination-api.jar:$LIBS/bungeecord-chat.jar"
+CP="$LIBS/paper-api.jar;$LIBS/vault-api.jar;$LIBS/adventure-api.jar;$LIBS/adventure-key.jar;$LIBS/jetbrains-annotations.jar;$LIBS/guava.jar;$LIBS/examination-api.jar;$LIBS/bungeecord-chat.jar"
 
-javac --release 21 -cp "$CP" -d "$OUT" @"$BASE/build/sources.txt"
-cp "$BASE/src/main/resources/plugin.yml" "$OUT/"
-cp "$BASE/src/main/resources/config.yml" "$OUT/"
-cd "$OUT" && jar cf "$JAR" .
+javac --release 21 -cp "$CP" -d "$OUT" @"$BASE_WIN/build/sources.txt"
+cp "$BASE/src/main/resources/plugin.yml" "$BASE/build/classes/"
+cp "$BASE/src/main/resources/config.yml" "$BASE/build/classes/"
+cd "$BASE/build/classes" && jar cf "$JAR" .
 echo "Built: $JAR ($(du -sh "$JAR" | cut -f1))"

@@ -109,6 +109,9 @@ public class TeleportHelper {
         player.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("waypoint-teleported"), wp.getName()));
         plugin.getWaypointManager().setRecallCooldown(player.getUniqueId());
+
+        // Notify party members of this Pinpoint travel
+        plugin.getPartyGuiManager().notifyPartyTravel(player, wp);
     }
 
     // Returns null if no safe spot found within radius.
