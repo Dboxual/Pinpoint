@@ -1,5 +1,5 @@
 name: WaypointSystem
-version: '1.0.2'
+version: '1.0.3'
 main: com.waypointsystem.WaypointPlugin
 api-version: '1.21'
 description: Geyser-compatible craftable waypoint system
@@ -9,16 +9,33 @@ softdepend: [Vault, Geyser-Spigot]
 commands:
   waypoint:
     description: Main waypoint command
-    usage: /waypoint [accept|deny|reload|give]
+    usage: |
+      /waypoint           - Open waypoint hub GUI
+      /waypoint menu      - Open waypoint hub GUI
+      /waypoint list      - List your accessible waypoints
+      /waypoint accept    - Accept a pending teleport invite
+      /waypoint deny      - Deny a pending teleport invite
+      /waypoint reload    - Reload config and data (admin)
+      /waypoint give <player> waypoint [amount]
+      /waypoint give <player> orb <name|id> [amount]
     aliases: [wp]
 
 permissions:
-  waypointsystem.use:
-    description: Allows using waypoints
+  waypoint.use:
+    description: Use waypoints, open hub GUI, teleport, create waypoints
     default: true
-  waypointsystem.admin:
-    description: Admin commands
+  waypoint.list:
+    description: Use /waypoint list
+    default: true
+  waypoint.give:
+    description: Use /waypoint give to hand out waypoint items and recall orbs
     default: op
-  waypointsystem.give:
-    description: Give waypoint items to players
+  waypoint.reload:
+    description: Use /waypoint reload
     default: op
+  waypoint.admin:
+    description: All admin permissions (includes give + reload)
+    default: op
+    children:
+      waypoint.give: true
+      waypoint.reload: true

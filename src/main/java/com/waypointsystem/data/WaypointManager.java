@@ -26,6 +26,9 @@ public class WaypointManager {
     private final Map<UUID, Integer> pendingNamingTaskIds = new HashMap<>();
     private final Map<UUID, Integer> pendingFeeTaskIds = new HashMap<>();
 
+    // Recall Orb use timestamps for cooldown enforcement
+    private final Map<UUID, Long> recallOrbCooldowns = new HashMap<>();
+
     public WaypointManager(WaypointPlugin plugin, WaypointStorage storage) {
         this.plugin = plugin;
         this.storage = storage;
@@ -148,6 +151,39 @@ public class WaypointManager {
     // Short display ID: first 4 hex chars of the UUID, upper-case.
     public static String shortId(UUID id) {
         return id.toString().substring(0, 4).toUpperCase();
+    }
+
+    // --- Recall Orb cooldown ---
+
+    public boolean isOnRecallCooldown(UUID uuid) {
+        Long last = recallOrbCooldowns.get(uuid);
+        if (last == null) return false;
+        int cooldown = plugin.getConfig().getInt("settings.teleport-cooldown-seconds", 3);
+        return (System.currentTimeMillis() - last) < cooldown * 1000L;
+    }
+
+    public long getRemainingCooldownSeconds(UUID uuid) {
+        Long last = recallOrbCooldowns.get(uuid);
+        if (last == null) return 0;
+        int cooldown = plugin.getConfig().getInt("settings.teleport-cooldown-seconds", 3);
+        long remainingMs = (cooldown * 1000L) - (System.currentTimeMillis() - last);
+        return Math.max(0, (remainingMs + 999) / 1000);
+    }
+
+    public void setRecallCooldown(UUID uuid) {
+        recallOrbCooldowns.put(uuid, System.currentTimeMillis());
+    }
+
+    // --- Waypoint limit ---
+
+    public boolean isAtWaypointLimit(UUID playerUuid) {
+        int max = plugin.getConfig().getInt("settings.max-waypoints-per-player", 10);
+        if (max <= 0) return false;
+        return getOwnedWaypoints(playerUuid).size() >= max;
+    }
+
+    public int getMaxWaypoints() {
+        return plugin.getConfig().getInt("settings.max-waypoints-per-player", 10);
     }
 
     // --- Teleport invites ---

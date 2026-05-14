@@ -4,7 +4,7 @@ set -e
 BASE="$(cd "$(dirname "$0")" && pwd)"
 LIBS="$BASE/libs"
 OUT="$BASE/build/classes"
-JAR="$BASE/build/WaypointSystem-1.0.2.jar"
+JAR="$BASE/build/WaypointSystem-1.0.3.jar"
 
 rm -rf "$OUT" && mkdir -p "$OUT"
 find "$BASE/src/main/java" -name "*.java" > "$BASE/build/sources.txt"

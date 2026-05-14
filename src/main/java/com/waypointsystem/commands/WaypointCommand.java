@@ -26,9 +26,13 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 0) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("menu")) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage("Only players can use /waypoint.");
+                return true;
+            }
+            if (!player.hasPermission("waypoint.use")) {
+                player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
                 return true;
             }
             plugin.getGuiManager().openHubGui(player, null);
@@ -36,39 +40,82 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         }
 
         switch (args[0].toLowerCase()) {
-            case "accept" -> {
-                if (!(sender instanceof Player player)) return true;
-                processAccept(player);
-            }
-            case "deny" -> {
-                if (!(sender instanceof Player player)) return true;
-                processDeny(player);
-            }
-            case "reload" -> {
-                if (!sender.hasPermission("waypointsystem.admin")) {
-                    sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
-                    return true;
-                }
-                plugin.reload();
-                sender.sendMessage(plugin.msg("prefix") + "§aReloaded.");
-            }
-            case "give" -> handleGive(sender, args);
-            default -> sender.sendMessage(plugin.msg("prefix") +
-                    "§eUsage: /waypoint [accept|deny|reload|give <player> waypoint [amount]|give <player> orb <name|id> [amount]]");
+            case "list"   -> handleList(sender);
+            case "accept" -> { if (sender instanceof Player p) processAccept(p); }
+            case "deny"   -> { if (sender instanceof Player p) processDeny(p); }
+            case "reload" -> handleReload(sender);
+            case "give"   -> handleGive(sender, args);
+            default -> sendUsage(sender);
         }
         return true;
+    }
+
+    // /waypoint list
+    private void handleList(CommandSender sender) {
+        if (!sender.hasPermission("waypoint.list")) {
+            sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
+            return;
+        }
+
+        UUID playerUuid = (sender instanceof Player p) ? p.getUniqueId() : null;
+
+        List<Waypoint> waypoints = playerUuid != null
+                ? plugin.getWaypointManager().getAccessibleWaypoints(playerUuid)
+                : new ArrayList<>(plugin.getWaypointManager().getAllWaypoints());
+
+        waypoints.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+
+        if (waypoints.isEmpty()) {
+            sender.sendMessage(plugin.msg("prefix") + "§7You have no accessible waypoints.");
+            return;
+        }
+
+        sender.sendMessage(plugin.msg("prefix") + "§eAccessible waypoints §7(" + waypoints.size() + ")§e:");
+        for (Waypoint wp : waypoints) {
+            String tag;
+            if (playerUuid != null && wp.isOwner(playerUuid)) {
+                tag = "§a[yours]";
+            } else if (wp.isPublic()) {
+                tag = "§b[public]";
+            } else {
+                tag = "§6[invited]";
+            }
+
+            String feeStr = wp.getFee() > 0 && plugin.getEconomyManager().isEnabled()
+                    ? "§6" + plugin.getEconomyManager().format(wp.getFee())
+                    : "§afree";
+
+            String visStr = wp.isPublic() ? "§apublic" : "§cprivate";
+
+            sender.sendMessage("  §7» §f" + wp.getName()
+                    + " §8(#" + WaypointManager.shortId(wp.getId()) + ")"
+                    + " " + tag
+                    + " §7| owner: §f" + wp.getOwnerName()
+                    + " §7| " + visStr
+                    + " §7| fee: " + feeStr);
+        }
+    }
+
+    // /waypoint reload
+    private void handleReload(CommandSender sender) {
+        if (!sender.hasPermission("waypoint.reload")) {
+            sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
+            return;
+        }
+        plugin.reload();
+        sender.sendMessage(plugin.msg("prefix") + "§aReloaded.");
     }
 
     // /waypoint give <player> waypoint [amount]
     // /waypoint give <player> orb <waypointNameOrId> [amount]
     private void handleGive(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("waypointsystem.give")) {
+        if (!sender.hasPermission("waypoint.give")) {
             sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
             return;
         }
         if (args.length < 3) {
             sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> waypoint [amount]");
-            sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> orb <waypointNameOrId> [amount]");
+            sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> orb <name|id> [amount]");
             return;
         }
 
@@ -78,9 +125,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        String type = args[2].toLowerCase();
-
-        switch (type) {
+        switch (args[2].toLowerCase()) {
             case "waypoint" -> {
                 int amount = parseAmount(args, 3, 1);
                 ItemStack item = plugin.getItemManager().createUnnamedWaypointItem();
@@ -95,13 +140,12 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
             }
             case "orb" -> {
                 if (args.length < 4) {
-                    sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> orb <waypointNameOrId> [amount]");
+                    sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> orb <name|id> [amount]");
                     return;
                 }
                 String query = args[3];
                 int amount = parseAmount(args, 4, 1);
 
-                // If the query looks like a UUID, resolve directly by ID — no ambiguity possible.
                 boolean looksLikeUuid = query.length() == 36 && query.contains("-");
                 if (looksLikeUuid) {
                     Optional<Waypoint> wpOpt = plugin.getWaypointManager().getWaypointByNameOrId(query);
@@ -117,7 +161,6 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                     return;
                 }
 
-                // Name lookup — detect collisions before acting.
                 List<Waypoint> matches = plugin.getWaypointManager().getWaypointsByName(query);
                 if (matches.isEmpty()) {
                     sender.sendMessage(plugin.msg("prefix") + "§cNo waypoint found matching §e" + query + "§c.");
@@ -125,12 +168,12 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                 }
                 if (matches.size() > 1) {
                     sender.sendMessage(plugin.msg("prefix") + "§eMultiple waypoints named §b" + query
-                            + "§e exist. Use the full UUID instead:");
+                            + "§e exist. Use the full UUID:");
                     for (Waypoint m : matches) {
                         sender.sendMessage("  §7- §b" + m.getName()
-                                + " §8(#" + WaypointManager.shortId(m.getId()) + ")§7"
-                                + " owner: §f" + m.getOwnerName()
-                                + " §8full-id: §7" + m.getId());
+                                + " §8(#" + WaypointManager.shortId(m.getId()) + ")"
+                                + " §7owner: §f" + m.getOwnerName()
+                                + " §7id: §8" + m.getId());
                     }
                     sender.sendMessage(plugin.msg("prefix") + "§eRe-run with: §b/waypoint give "
                             + target.getName() + " orb <full-uuid> [amount]");
@@ -141,20 +184,8 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
                         + "x §dRecall Orb§a (§b" + wp.getName() + "§a) to §b" + target.getName() + "§a.");
             }
-            default -> {
-                sender.sendMessage(plugin.msg("prefix") + "§cUnknown type §e" + type
-                        + "§c. Use §ewaypoint§c or §eorb§c.");
-            }
-        }
-    }
-
-    private int parseAmount(String[] args, int index, int defaultVal) {
-        if (args.length <= index) return defaultVal;
-        try {
-            int n = Integer.parseInt(args[index]);
-            return Math.max(1, n);
-        } catch (NumberFormatException e) {
-            return defaultVal;
+            default -> sender.sendMessage(plugin.msg("prefix")
+                    + "§cUnknown type §e" + args[2] + "§c. Use §ewaypoint§c or §eorb§c.");
         }
     }
 
@@ -197,7 +228,6 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
 
         WaypointManager.TeleportInvite invite = plugin.getWaypointManager().getInvite(uuid);
         plugin.getWaypointManager().removeInvite(uuid);
-
         player.sendMessage(plugin.msg("prefix") + "§cYou denied the teleport invite.");
 
         Player inviter = Bukkit.getPlayer(invite.inviterUuid);
@@ -210,7 +240,8 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return filter(List.of("accept", "deny", "reload", "give"), args[0]);
+            List<String> subs = new ArrayList<>(List.of("menu", "list", "accept", "deny", "reload", "give"));
+            return filter(subs, args[0]);
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
             return Bukkit.getOnlinePlayers().stream()
@@ -221,13 +252,32 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
             return filter(List.of("waypoint", "orb"), args[2]);
         }
-        if (args.length == 4 && args[0].equalsIgnoreCase("give") && args[2].equalsIgnoreCase("orb")) {
+        if (args.length == 4 && args[0].equalsIgnoreCase("give")
+                && args[2].equalsIgnoreCase("orb")) {
             List<String> names = new ArrayList<>();
-            plugin.getWaypointManager().getAllWaypoints()
-                    .forEach(wp -> names.add(wp.getName()));
+            plugin.getWaypointManager().getAllWaypoints().forEach(wp -> names.add(wp.getName()));
             return filter(names, args[3]);
         }
         return List.of();
+    }
+
+    // --- Helpers ---
+
+    private void sendUsage(CommandSender sender) {
+        sender.sendMessage(plugin.msg("prefix") + "§eWaypoint commands:");
+        sender.sendMessage("  §b/wp§e or §b/wp menu §7- Open waypoint hub");
+        sender.sendMessage("  §b/wp list            §7- List accessible waypoints");
+        sender.sendMessage("  §b/wp accept§e/§bdeny  §7- Respond to a teleport invite");
+        if (sender.hasPermission("waypoint.reload"))
+            sender.sendMessage("  §b/wp reload          §7- Reload config and data");
+        if (sender.hasPermission("waypoint.give"))
+            sender.sendMessage("  §b/wp give §e<player> waypoint§7|§eorb §7- Give items");
+    }
+
+    private int parseAmount(String[] args, int index, int defaultVal) {
+        if (args.length <= index) return defaultVal;
+        try { return Math.max(1, Integer.parseInt(args[index])); }
+        catch (NumberFormatException e) { return defaultVal; }
     }
 
     private List<String> filter(List<String> options, String prefix) {

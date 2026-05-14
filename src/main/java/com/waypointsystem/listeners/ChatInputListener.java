@@ -59,6 +59,13 @@ public class ChatInputListener implements Listener {
             plugin.getWaypointManager().clearPendingNaming(uuid);
 
             plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (plugin.getWaypointManager().isAtWaypointLimit(uuid)) {
+                    int max = plugin.getWaypointManager().getMaxWaypoints();
+                    player.sendMessage(plugin.msg("prefix") +
+                            String.format(plugin.msgCfg("waypoint-limit-reached"), max));
+                    return;
+                }
+
                 Waypoint wp = plugin.getWaypointManager().createWaypoint(input, player, loc);
 
                 ItemStack hand = player.getInventory().getItemInMainHand();
