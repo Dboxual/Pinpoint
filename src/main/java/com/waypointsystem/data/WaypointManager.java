@@ -33,6 +33,9 @@ public class WaypointManager {
     private final Map<UUID, UUID> pendingRenaming = new HashMap<>();
     private final Map<UUID, Integer> pendingRenamingTaskIds = new HashMap<>();
 
+    // Block location index: "world,x,y,z" -> waypoint UUID
+    private final Map<String, UUID> locationIndex = new HashMap<>();
+
     public WaypointManager(WaypointPlugin plugin, WaypointStorage storage) {
         this.plugin = plugin;
         this.storage = storage;
@@ -40,8 +43,10 @@ public class WaypointManager {
 
     public void loadAll() {
         waypoints.clear();
+        locationIndex.clear();
         for (Waypoint wp : storage.loadAll()) {
             waypoints.put(wp.getId(), wp);
+            locationIndex.put(locationKey(wp), wp.getId());
         }
         plugin.getLogger().info("Loaded " + waypoints.size() + " waypoints.");
     }
@@ -51,6 +56,7 @@ public class WaypointManager {
         Waypoint wp = new Waypoint(id, name, owner.getUniqueId(), owner.getName(), location,
                 false, plugin.getConfig().getDouble("settings.default-fee", 0));
         waypoints.put(id, wp);
+        locationIndex.put(locationKey(wp), id);
         storage.saveWaypoint(wp);
         return wp;
     }
@@ -60,8 +66,25 @@ public class WaypointManager {
     }
 
     public void deleteWaypoint(UUID id) {
-        waypoints.remove(id);
+        Waypoint wp = waypoints.remove(id);
+        if (wp != null) locationIndex.remove(locationKey(wp));
         storage.deleteWaypoint(id);
+    }
+
+    // --- Block location index ---
+
+    private String locationKey(Waypoint wp) {
+        return wp.getWorldName() + "," + (int) wp.getX() + "," + (int) wp.getY() + "," + (int) wp.getZ();
+    }
+
+    private String locationKey(Location loc) {
+        return loc.getWorld().getName() + "," + loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+    }
+
+    public Optional<Waypoint> getWaypointAt(Location loc) {
+        if (loc == null || loc.getWorld() == null) return Optional.empty();
+        UUID id = locationIndex.get(locationKey(loc));
+        return id != null ? getWaypoint(id) : Optional.empty();
     }
 
     public Optional<Waypoint> getWaypoint(UUID id) {

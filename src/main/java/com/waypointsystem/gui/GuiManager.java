@@ -4,6 +4,7 @@ import com.waypointsystem.WaypointPlugin;
 import com.waypointsystem.data.Waypoint;
 import com.waypointsystem.data.WaypointManager;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -15,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.*;
+import java.util.List;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -191,11 +193,12 @@ public class GuiManager implements Listener {
                 handlers.put(13, () -> openInviteGui(player, wp));
             }
 
-            inv.setItem(14, makeItem(Material.ENDER_PEARL, "Create Recall Orb",
-                    List.of(colorLine("Creates a linked Recall Orb", NamedTextColor.YELLOW))));
+            inv.setItem(14, makeItem(Material.ENDER_PEARL, "Get Waypoint Pearl",
+                    List.of(colorLine("Gives you a Waypoint Pearl", NamedTextColor.YELLOW),
+                            colorLine("Use it to access all your waypoints", NamedTextColor.GRAY))));
             handlers.put(14, () -> {
                 closeGui(player);
-                plugin.getItemManager().giveRecallOrb(player, wp);
+                plugin.getItemManager().giveWaypointPearl(player);
             });
 
             inv.setItem(15, makeItem(Material.NAME_TAG, "Rename Waypoint",
@@ -238,7 +241,11 @@ public class GuiManager implements Listener {
         inv.setItem(15, makeItem(Material.RED_WOOL, "Confirm Delete",
                 List.of(colorLine("Permanently deletes this waypoint", NamedTextColor.RED))));
         handlers.put(15, () -> {
+            Location blockLoc = wp.getLocation();
             plugin.getWaypointManager().deleteWaypoint(wp.getId());
+            if (blockLoc != null && blockLoc.getBlock().getType() == Material.LODESTONE) {
+                blockLoc.getBlock().setType(Material.AIR);
+            }
             closeGui(player);
             player.sendMessage(plugin.msg("prefix") +
                     String.format(plugin.msgCfg("waypoint-deleted"), wp.getName()));
@@ -320,6 +327,68 @@ public class GuiManager implements Listener {
         handlers.put(15, () -> plugin.getCommandHandler().processDeny(player));
 
         openGui(player, inv, handlers);
+    }
+
+    public void openInviteSelectGui(Player inviter, Player target, List<Waypoint> options) {
+        Set<String> dupes = duplicateNames(options);
+        int rows = Math.max(3, Math.min(6, (int) Math.ceil((options.size() + 9) / 9.0) + 1));
+        Inventory inv = Bukkit.createInventory(null, rows * 9,
+                Component.text("Invite " + target.getName() + " to:").color(NamedTextColor.AQUA));
+        Map<Integer, Runnable> handlers = new HashMap<>();
+        fillBorder(inv, rows);
+
+        int slot = 10;
+        for (Waypoint wp : options) {
+            if (slot >= rows * 9 - 9) break;
+            List<Component> lore = new ArrayList<>();
+            lore.add(colorLine(wp.isPublic() ? "Public" : "Private",
+                    wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED));
+            lore.add(colorLine("Click to invite " + target.getName(), NamedTextColor.YELLOW));
+            inv.setItem(slot, makeItem(Material.ENDER_PEARL, label(wp, dupes), lore));
+            final Waypoint finalWp = wp;
+            handlers.put(slot, () -> sendInvite(inviter, target, finalWp));
+            slot++;
+            if ((slot % 9) == 8) slot += 2;
+        }
+
+        int cancelSlot = rows * 9 - 1;
+        inv.setItem(cancelSlot, makeItem(Material.BARRIER, "Cancel", List.of()));
+        handlers.put(cancelSlot, () -> closeGui(inviter));
+
+        openGui(inviter, inv, handlers);
+    }
+
+    private void sendInvite(Player inviter, Player target, Waypoint wp) {
+        if (!target.isOnline()) {
+            inviter.sendMessage(plugin.msg("prefix") + "§c" + target.getName() + " is no longer online.");
+            closeGui(inviter);
+            return;
+        }
+        if (plugin.getWaypointManager().hasPendingInvite(target.getUniqueId())) {
+            inviter.sendMessage(plugin.msg("prefix") + "§c" + target.getName() + " already has a pending invite.");
+            return;
+        }
+
+        plugin.getWaypointManager().createInvite(
+                inviter.getUniqueId(), target.getUniqueId(), wp.getId(), java.util.UUID.randomUUID());
+        closeGui(inviter);
+        inviter.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("invite-sent"), target.getName()));
+
+        openAcceptDenyGui(target, inviter.getName(), wp.getName());
+        target.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("invite-received"), inviter.getName(), wp.getName()));
+
+        int timeoutSeconds = plugin.getConfig().getInt("settings.invite-timeout", 60);
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (plugin.getWaypointManager().hasPendingInvite(target.getUniqueId())) {
+                plugin.getWaypointManager().removeInvite(target.getUniqueId());
+                if (target.isOnline())
+                    target.sendMessage(plugin.msg("prefix") + plugin.msgCfg("invite-expired"));
+                if (inviter.isOnline())
+                    inviter.sendMessage(plugin.msg("prefix") + "§c" + target.getName() + "'s invite expired.");
+            }
+        }, timeoutSeconds * 20L);
     }
 
     // --- Internal ---

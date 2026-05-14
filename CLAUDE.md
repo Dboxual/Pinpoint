@@ -23,19 +23,27 @@ WaypointSystem is a Paper 1.21.1 plugin that gives players craftable teleportati
 ## Architecture overview
 
 ```
-WaypointPlugin          — main class, wires all managers together
-  ItemManager           — PDC keys, recipe registration, item factories
-  WaypointManager       — in-memory waypoint state, all pending-input maps
-  WaypointStorage       — YAML read/write/delete
-  GuiManager            — inventory GUI builder + click handler dispatcher
-  EconomyManager        — Vault wrapper (null-safe)
-  TeleportHelper        — safe-spot finder, fee charge/refund, teleport execution
-  ChatInputListener     — AsyncPlayerChatEvent handler for naming, fee, rename flows
-  WaypointInteractListener — right-click item and right-click player events
-  WaypointCommand       — /waypoint subcommands + tab completion
+WaypointPlugin             — main class, wires all managers together
+  ItemManager              — PDC keys, recipe registration, item factories
+  WaypointManager          — in-memory waypoint state, location index, pending-input maps
+  WaypointStorage          — YAML read/write/delete
+  GuiManager               — inventory GUI builder + click handler dispatcher
+  EconomyManager           — Vault wrapper (null-safe)
+  TeleportHelper           — safe-spot finder, fee charge/refund, cooldown, teleport
+  ChatInputListener        — AsyncPlayerChatEvent handler for naming, fee, rename flows
+  BlockPlaceListener       — waypoint block placement → starts naming flow
+  BlockBreakListener       — protects waypoint blocks; authorized break deletes waypoint
+  WaypointInteractListener — block right-click (open GUI) + pearl right-click (open hub / invite)
+  WaypointCommand          — /waypoint subcommands + tab completion
 ```
 
-**Pending-input pattern:** Any chat input flow (naming, fee, rename) stores state in `WaypointManager` maps keyed by player UUID. `ChatInputListener.onChat` checks each map in priority order (rename → naming → fee). Each flow has a companion timeout task whose ID is stored so it can be cancelled early when valid input arrives.
+**Block-based waypoints:** The placed Lodestone block IS the waypoint. `WaypointManager` maintains a `Map<String, UUID> locationIndex` keyed by `"world,x,y,z"` strings for O(1) block-to-waypoint lookups. The index is populated on load and kept in sync on create/delete.
+
+**Waypoint Pearl:** A PDC-tagged Ender Pearl that gives access to all accessible waypoints. Right-click air/block → Hub GUI. Right-click player → `openInviteSelectGui` → waypoint selection → invite sent.
+
+**Pending-input pattern:** Any chat input flow (naming, fee, rename) stores state in `WaypointManager` maps keyed by player UUID. `ChatInputListener.onChat` checks each map in priority order (rename → naming → fee). Each flow has a companion timeout task whose ID is stored so it can be cancelled early. Naming cancel/timeout also restores the physical block and refunds the item.
+
+**Cooldown:** Enforced in `TeleportHelper.teleport()` for non-owners only. Owners can teleport to their own waypoints without cooldown.
 
 ---
 

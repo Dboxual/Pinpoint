@@ -16,6 +16,16 @@ public class TeleportHelper {
     }
 
     public void teleport(Player player, Waypoint wp) {
+        // Cooldown applies to non-owners only
+        if (!wp.isOwner(player.getUniqueId())) {
+            if (plugin.getWaypointManager().isOnRecallCooldown(player.getUniqueId())) {
+                long secs = plugin.getWaypointManager().getRemainingCooldownSeconds(player.getUniqueId());
+                player.sendMessage(plugin.msg("prefix") +
+                        String.format(plugin.msgCfg("cooldown-active"), secs));
+                return;
+            }
+        }
+
         // World loaded?
         World world = org.bukkit.Bukkit.getWorld(wp.getWorldName());
         if (world == null) {
@@ -60,6 +70,10 @@ public class TeleportHelper {
         player.teleport(safe);
         player.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("waypoint-teleported"), wp.getName()));
+
+        if (!wp.isOwner(player.getUniqueId())) {
+            plugin.getWaypointManager().setRecallCooldown(player.getUniqueId());
+        }
     }
 
     // Returns null if no safe spot found within radius.

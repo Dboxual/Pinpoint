@@ -3,6 +3,7 @@ package com.waypointsystem.listeners;
 import com.waypointsystem.WaypointPlugin;
 import com.waypointsystem.data.Waypoint;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -66,16 +67,6 @@ public class ChatInputListener implements Listener {
                     wp.setName(input);
                     plugin.getWaypointManager().saveWaypoint(wp);
 
-                    // Update held item name tag if it is linked to this waypoint
-                    ItemStack hand = player.getInventory().getItemInMainHand();
-                    if (plugin.getItemManager().isNamedWaypointItem(hand)) {
-                        String heldId = plugin.getItemManager().getWaypointId(hand);
-                        if (waypointId.toString().equals(heldId)) {
-                            player.getInventory().setItemInMainHand(
-                                    plugin.getItemManager().createNamedWaypointItem(waypointId, input));
-                        }
-                    }
-
                     player.sendMessage(plugin.msg("prefix") +
                             String.format(plugin.msgCfg("waypoint-renamed"), input));
                 }, () -> player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("waypoint-not-found")));
@@ -121,12 +112,6 @@ public class ChatInputListener implements Listener {
                 }
 
                 Waypoint wp = plugin.getWaypointManager().createWaypoint(input, player, loc);
-
-                ItemStack hand = player.getInventory().getItemInMainHand();
-                if (plugin.getItemManager().isWaypointItem(hand) && !plugin.getItemManager().isNamedWaypointItem(hand)) {
-                    player.getInventory().setItemInMainHand(
-                            plugin.getItemManager().createNamedWaypointItem(wp.getId(), wp.getName()));
-                }
 
                 player.sendMessage(plugin.msg("prefix") +
                         String.format(plugin.msgCfg("waypoint-named"), wp.getName()));
@@ -196,10 +181,12 @@ public class ChatInputListener implements Listener {
         UUID uuid = player.getUniqueId();
         int taskId = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (plugin.getWaypointManager().hasPendingNaming(uuid)) {
+                Location loc = plugin.getWaypointManager().getPendingNaming(uuid);
                 plugin.getWaypointManager().clearPendingNaming(uuid);
                 plugin.getWaypointManager().clearPendingNamingTaskId(uuid);
+                restoreWaypointBlock(player, loc);
                 if (player.isOnline()) {
-                    player.sendMessage(plugin.msg("prefix") + "§cWaypoint naming timed out. Type §e/waypoint§c to try again.");
+                    player.sendMessage(plugin.msg("prefix") + "§cWaypoint naming timed out. Block removed.");
                 }
             }
         }, TIMEOUT_TICKS).getTaskId();
@@ -232,10 +219,25 @@ public class ChatInputListener implements Listener {
     private void cancelNaming(Player player, UUID uuid) {
         int taskId = plugin.getWaypointManager().getPendingNamingTaskId(uuid);
         if (taskId != -1) plugin.getServer().getScheduler().cancelTask(taskId);
+        Location loc = plugin.getWaypointManager().getPendingNaming(uuid);
         plugin.getWaypointManager().clearPendingNaming(uuid);
         plugin.getWaypointManager().clearPendingNamingTaskId(uuid);
-        plugin.getServer().getScheduler().runTask(plugin, () ->
-                player.sendMessage(plugin.msg("prefix") + "§cWaypoint naming cancelled."));
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            restoreWaypointBlock(player, loc);
+            player.sendMessage(plugin.msg("prefix") + "§cWaypoint naming cancelled. Block removed.");
+        });
+    }
+
+    private void restoreWaypointBlock(Player player, Location loc) {
+        if (loc == null || loc.getWorld() == null) return;
+        if (loc.getBlock().getType() != Material.LODESTONE) return;
+        loc.getBlock().setType(Material.AIR);
+        ItemStack refund = plugin.getItemManager().createWaypointBlockItem();
+        if (player.isOnline()) {
+            player.getInventory().addItem(refund);
+        } else {
+            loc.getWorld().dropItem(loc, refund);
+        }
     }
 
     private void cancelFeeInput(Player player, UUID uuid) {

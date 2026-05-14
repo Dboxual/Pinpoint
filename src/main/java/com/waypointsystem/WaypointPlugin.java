@@ -6,6 +6,8 @@ import com.waypointsystem.data.WaypointStorage;
 import com.waypointsystem.economy.EconomyManager;
 import com.waypointsystem.gui.GuiManager;
 import com.waypointsystem.item.ItemManager;
+import com.waypointsystem.listeners.BlockBreakListener;
+import com.waypointsystem.listeners.BlockPlaceListener;
 import com.waypointsystem.listeners.ChatInputListener;
 import com.waypointsystem.listeners.WaypointInteractListener;
 import com.waypointsystem.util.TeleportHelper;
@@ -57,6 +59,8 @@ public class WaypointPlugin extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(guiManager, this);
         getServer().getPluginManager().registerEvents(new WaypointInteractListener(this), this);
+        getServer().getPluginManager().registerEvents(new BlockPlaceListener(this), this);
+        getServer().getPluginManager().registerEvents(new BlockBreakListener(this), this);
         getServer().getPluginManager().registerEvents(chatInputListener, this);
 
         getLogger().info("WaypointSystem enabled with " + waypointManager.getAllWaypoints().size() + " waypoints loaded.");

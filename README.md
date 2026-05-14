@@ -1,26 +1,26 @@
 # WaypointSystem
 
-A Geyser/Bedrock-compatible craftable waypoint system for Paper 1.21.1. Players craft Waypoint items, name them, and use GUI menus to manage teleportation, fees, and player invites — no command memorization required.
+A Geyser/Bedrock-compatible craftable waypoint system for Paper 1.21.1. Players craft and place a **Waypoint Block** in the world, name it, then manage teleportation, fees, and player invites through GUI menus. A **Waypoint Pearl** item lets players access all their waypoints from anywhere — no command memorization required.
 
 ---
 
 ## Features
 
-- **Craftable Waypoints** — obtained via the crafting table, no admin commands needed for players
+- **Craftable Waypoint Blocks** — place a Lodestone-based block anywhere in the world to create a physical waypoint
+- **Block protection** — only the owner or an admin can break a waypoint block; breaking it removes the waypoint
 - **Public/private waypoints** — owners control who can see and use each waypoint
 - **Teleport fees** — optional per-waypoint fee charged via Vault (gracefully disabled without Vault)
-- **Player invites** — owners can invite specific players to private waypoints
-- **Recall Orbs** — linkable Ender Pearl items for instant one-click teleportation
-- **Recall Orb player invites** — right-click a player with a Recall Orb to send a teleport invite
+- **Player invites** — right-click a player with a Waypoint Pearl to select a waypoint and send a teleport invite
+- **Waypoint Pearl** — craftable Ender Pearl item that opens a GUI listing all accessible waypoints; right-click a player to invite them
 - **Safe teleporting** — destination scanner finds the nearest safe landing spot automatically
 - **Bedrock/Geyser compatibility** — GUI-first design works with Bedrock clients via Geyser
 - **Configurable limits and cooldowns** — max waypoints per player, teleport cooldown, invite settings
 
 ---
 
-## Crafting Recipe
+## Crafting Recipes
 
-Craft a **Waypoint** item at any crafting table:
+**Waypoint Block** — place in the world to create a waypoint:
 
 ```
 [ Q ][ Q ][ Q ]
@@ -32,29 +32,42 @@ Craft a **Waypoint** item at any crafting table:
 
 ---
 
+**Waypoint Pearl** — opens your waypoints from anywhere:
+
+```
+[ P ][   ][ P ]
+[   ][ E ][   ]
+[ P ][   ][ P ]
+```
+
+`P` = Ender Pearl &nbsp;&nbsp; `E` = Ender Eye
+
+---
+
 ## How Players Use It
 
-**Step 1 — Craft a Waypoint**
-Use the recipe above. The item appears as a Compass named **Waypoint**.
+**Step 1 — Craft a Waypoint Block**
+Use the Waypoint Block recipe (8x Quartz + Ender Eye). You receive a Lodestone-style item named **Waypoint**.
 
-**Step 2 — Name your Waypoint**
-Right-click the Waypoint item. A chat prompt appears asking for a name. Type a name (up to 32 characters) and press Enter. Type `cancel` to abort.
+**Step 2 — Place the block and name it**
+Place the Waypoint block anywhere in the world. A chat prompt immediately asks for a name. Type a name (up to 32 characters) and press Enter. Type `cancel` to abort (the block is removed and returned to you).
 
 **Step 3 — Manage your Waypoint**
-Right-click the now-named Waypoint item to open the **Waypoint Hub** GUI. Click your waypoint to open the **Manage** screen. From there you can:
+Right-click the placed block to open the **Waypoint Hub** GUI. Click your waypoint to open the **Manage** screen. From there you can:
 - Teleport to the waypoint
 - Toggle public/private
 - Set a teleport fee
-- Invite specific players
+- Invite specific players (for private waypoints)
 - Rename the waypoint
-- Delete the waypoint (with confirmation)
+- Get a Waypoint Pearl
+- Delete the waypoint (with confirmation — also removes the block)
 
-**Step 4 — Create a Recall Orb**
-In the Manage screen, click **Create Recall Orb**. The orb is linked directly to that waypoint and can be given to any player.
+**Step 4 — Craft or get a Waypoint Pearl**
+Craft a Waypoint Pearl (4x Ender Pearl + Ender Eye) or get one from the Manage screen. The pearl shows **all waypoints you can access**.
 
 **Step 5 — Teleport and invite players**
-- **Right-click** a Recall Orb in air to teleport instantly.
-- **Right-click a player** with a Recall Orb to send them a teleport invite. They see a GUI to accept or deny; or they can type `/wp accept` / `/wp deny`.
+- **Right-click** a Waypoint Pearl in air to open your accessible waypoints and click one to teleport.
+- **Right-click a player** with a Waypoint Pearl to open a waypoint selection screen and send them a teleport invite. They see a GUI to accept or deny; or they can type `/wp accept` / `/wp deny`.
 
 ---
 
@@ -73,8 +86,8 @@ In the Manage screen, click **Create Recall Orb**. The orb is linked directly to
 
 | Command | Description |
 |---|---|
-| `/waypoint give <player> waypoint [amount]` | Give unnamed Waypoint items |
-| `/waypoint give <player> orb <name\|uuid> [amount]` | Give Recall Orbs for a specific waypoint |
+| `/waypoint give <player> waypoint [amount]` | Give Waypoint Block items |
+| `/waypoint give <player> pearl [amount]` | Give Waypoint Pearls |
 | `/waypoint reload` | Reload config and data from disk |
 
 ---

@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.0.5 — 2026-05-14
+### Changed (breaking redesign)
+- **Waypoint is now a placeable block (Lodestone)** — craft with 8x Quartz + Ender Eye, place in the world; the block IS the waypoint
+- **Right-click the placed block** to open the waypoint GUI instead of right-clicking a compass item
+- **Block protection** — only the owner or a player with `waypoint.admin` can break a waypoint block; breaking it deletes the waypoint from storage
+- **Waypoint Pearl replaces Recall Orb** — an Ender Pearl tagged item (4x Ender Pearl + Ender Eye) that shows ALL accessible waypoints; right-click air/block to open the hub, right-click a player to select a waypoint and send a teleport invite
+- Waypoint Pearl invite flow opens a **waypoint selection GUI** instead of linking to one specific waypoint
+- Cooldown increased to **10 seconds** (was 3); cooldown now applies only to non-owners and is enforced in `TeleportHelper` rather than the interact listener
+- `/waypoint give <player> orb` replaced with `/waypoint give <player> pearl`
+- Deleting a waypoint via the Manage GUI now also removes the physical block from the world
+- Block restoration on naming cancel/timeout — if the player cancels or times out while naming, the Lodestone block is removed and the item is returned
+
+### Added
+- `BlockPlaceListener` — detects waypoint block placement, enforces limits, starts naming flow
+- `BlockBreakListener` — protects waypoint blocks, removes waypoint on authorized break
+- `WaypointManager.getWaypointAt(Location)` — O(1) block-to-waypoint lookup via location index
+- `GuiManager.openInviteSelectGui` — GUI for selecting which waypoint to invite a player to
+
+### Migration
+- Existing waypoints in `waypoints.yml` load normally; their location is indexed for block detection
+- Old compass waypoint items and old Recall Orbs from prior versions are no longer recognized
+
+---
+
 ## v1.0.4 — 2026-05-14
 ### Added
 - Owner can delete a waypoint from Manage GUI — requires a confirmation screen before removal

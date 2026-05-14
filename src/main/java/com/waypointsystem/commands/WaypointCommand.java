@@ -115,7 +115,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length < 3) {
             sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> waypoint [amount]");
-            sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> orb <name|id> [amount]");
+            sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> pearl [amount]");
             return;
         }
 
@@ -128,64 +128,28 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         switch (args[2].toLowerCase()) {
             case "waypoint" -> {
                 int amount = parseAmount(args, 3, 1);
-                ItemStack item = plugin.getItemManager().createUnnamedWaypointItem();
+                ItemStack item = plugin.getItemManager().createWaypointBlockItem();
                 item.setAmount(Math.min(amount, 64));
                 target.getInventory().addItem(item);
                 sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
-                        + "x §bWaypoint item§a to §b" + target.getName() + "§a.");
+                        + "x §bWaypoint Block§a to §b" + target.getName() + "§a.");
                 if (!sender.equals(target)) {
                     target.sendMessage(plugin.msg("prefix") + "§aYou received §e" + amount
-                            + "x §bWaypoint item§a.");
+                            + "x §bWaypoint Block§a.");
                 }
             }
-            case "orb" -> {
-                if (args.length < 4) {
-                    sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> orb <name|id> [amount]");
-                    return;
-                }
-                String query = args[3];
-                int amount = parseAmount(args, 4, 1);
-
-                boolean looksLikeUuid = query.length() == 36 && query.contains("-");
-                if (looksLikeUuid) {
-                    Optional<Waypoint> wpOpt = plugin.getWaypointManager().getWaypointByNameOrId(query);
-                    if (wpOpt.isEmpty()) {
-                        sender.sendMessage(plugin.msg("prefix") + "§cNo waypoint found with ID §e" + query + "§c.");
-                        return;
-                    }
-                    Waypoint wp = wpOpt.get();
-                    plugin.getItemManager().giveRecallOrbs(target, wp, amount);
-                    sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
-                            + "x §dRecall Orb§a (§b" + wp.getName()
-                            + " #" + WaypointManager.shortId(wp.getId()) + "§a) to §b" + target.getName() + "§a.");
-                    return;
-                }
-
-                List<Waypoint> matches = plugin.getWaypointManager().getWaypointsByName(query);
-                if (matches.isEmpty()) {
-                    sender.sendMessage(plugin.msg("prefix") + "§cNo waypoint found matching §e" + query + "§c.");
-                    return;
-                }
-                if (matches.size() > 1) {
-                    sender.sendMessage(plugin.msg("prefix") + "§eMultiple waypoints named §b" + query
-                            + "§e exist. Use the full UUID:");
-                    for (Waypoint m : matches) {
-                        sender.sendMessage("  §7- §b" + m.getName()
-                                + " §8(#" + WaypointManager.shortId(m.getId()) + ")"
-                                + " §7owner: §f" + m.getOwnerName()
-                                + " §7id: §8" + m.getId());
-                    }
-                    sender.sendMessage(plugin.msg("prefix") + "§eRe-run with: §b/waypoint give "
-                            + target.getName() + " orb <full-uuid> [amount]");
-                    return;
-                }
-                Waypoint wp = matches.get(0);
-                plugin.getItemManager().giveRecallOrbs(target, wp, amount);
+            case "pearl" -> {
+                int amount = parseAmount(args, 3, 1);
+                plugin.getItemManager().giveWaypointPearls(target, amount);
                 sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
-                        + "x §dRecall Orb§a (§b" + wp.getName() + "§a) to §b" + target.getName() + "§a.");
+                        + "x §dWaypoint Pearl§a to §b" + target.getName() + "§a.");
+                if (!sender.equals(target)) {
+                    target.sendMessage(plugin.msg("prefix") + "§aYou received §e" + amount
+                            + "x §dWaypoint Pearl§a.");
+                }
             }
             default -> sender.sendMessage(plugin.msg("prefix")
-                    + "§cUnknown type §e" + args[2] + "§c. Use §ewaypoint§c or §eorb§c.");
+                    + "§cUnknown type §e" + args[2] + "§c. Use §ewaypoint§c or §epearl§c.");
         }
     }
 
@@ -250,13 +214,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                     .toList();
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
-            return filter(List.of("waypoint", "orb"), args[2]);
-        }
-        if (args.length == 4 && args[0].equalsIgnoreCase("give")
-                && args[2].equalsIgnoreCase("orb")) {
-            List<String> names = new ArrayList<>();
-            plugin.getWaypointManager().getAllWaypoints().forEach(wp -> names.add(wp.getName()));
-            return filter(names, args[3]);
+            return filter(List.of("waypoint", "pearl"), args[2]);
         }
         return List.of();
     }
@@ -271,7 +229,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         if (sender.hasPermission("waypoint.reload"))
             sender.sendMessage("  §b/wp reload          §7- Reload config and data");
         if (sender.hasPermission("waypoint.give"))
-            sender.sendMessage("  §b/wp give §e<player> waypoint§7|§eorb §7- Give items");
+            sender.sendMessage("  §b/wp give §e<player> waypoint§7|§epearl §7- Give items");
     }
 
     private int parseAmount(String[] args, int index, int defaultVal) {
