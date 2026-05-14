@@ -101,12 +101,42 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                 String query = args[3];
                 int amount = parseAmount(args, 4, 1);
 
-                Optional<Waypoint> wpOpt = plugin.getWaypointManager().getWaypointByNameOrId(query);
-                if (wpOpt.isEmpty()) {
+                // If the query looks like a UUID, resolve directly by ID — no ambiguity possible.
+                boolean looksLikeUuid = query.length() == 36 && query.contains("-");
+                if (looksLikeUuid) {
+                    Optional<Waypoint> wpOpt = plugin.getWaypointManager().getWaypointByNameOrId(query);
+                    if (wpOpt.isEmpty()) {
+                        sender.sendMessage(plugin.msg("prefix") + "§cNo waypoint found with ID §e" + query + "§c.");
+                        return;
+                    }
+                    Waypoint wp = wpOpt.get();
+                    plugin.getItemManager().giveRecallOrbs(target, wp, amount);
+                    sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
+                            + "x §dRecall Orb§a (§b" + wp.getName()
+                            + " #" + WaypointManager.shortId(wp.getId()) + "§a) to §b" + target.getName() + "§a.");
+                    return;
+                }
+
+                // Name lookup — detect collisions before acting.
+                List<Waypoint> matches = plugin.getWaypointManager().getWaypointsByName(query);
+                if (matches.isEmpty()) {
                     sender.sendMessage(plugin.msg("prefix") + "§cNo waypoint found matching §e" + query + "§c.");
                     return;
                 }
-                Waypoint wp = wpOpt.get();
+                if (matches.size() > 1) {
+                    sender.sendMessage(plugin.msg("prefix") + "§eMultiple waypoints named §b" + query
+                            + "§e exist. Use the full UUID instead:");
+                    for (Waypoint m : matches) {
+                        sender.sendMessage("  §7- §b" + m.getName()
+                                + " §8(#" + WaypointManager.shortId(m.getId()) + ")§7"
+                                + " owner: §f" + m.getOwnerName()
+                                + " §8full-id: §7" + m.getId());
+                    }
+                    sender.sendMessage(plugin.msg("prefix") + "§eRe-run with: §b/waypoint give "
+                            + target.getName() + " orb <full-uuid> [amount]");
+                    return;
+                }
+                Waypoint wp = matches.get(0);
                 plugin.getItemManager().giveRecallOrbs(target, wp, amount);
                 sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
                         + "x §dRecall Orb§a (§b" + wp.getName() + "§a) to §b" + target.getName() + "§a.");

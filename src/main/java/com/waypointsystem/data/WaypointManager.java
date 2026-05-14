@@ -129,12 +129,25 @@ public class WaypointManager {
                 .findFirst();
     }
 
+    public List<Waypoint> getWaypointsByName(String name) {
+        return waypoints.values().stream()
+                .filter(wp -> wp.getName().equalsIgnoreCase(name))
+                .sorted(Comparator.comparing(Waypoint::getName))
+                .collect(Collectors.toList());
+    }
+
+    // Resolves by UUID first; falls back to name only when the input is not a UUID.
     public Optional<Waypoint> getWaypointByNameOrId(String input) {
         try {
             return getWaypoint(UUID.fromString(input));
         } catch (IllegalArgumentException e) {
             return getWaypointByName(input);
         }
+    }
+
+    // Short display ID: first 4 hex chars of the UUID, upper-case.
+    public static String shortId(UUID id) {
+        return id.toString().substring(0, 4).toUpperCase();
     }
 
     // --- Teleport invites ---
