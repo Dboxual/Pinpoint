@@ -22,6 +22,10 @@ public class WaypointManager {
     // Pending fee inputs: player UUID -> waypoint UUID
     private final Map<UUID, UUID> pendingFeeInput = new HashMap<>();
 
+    // Timeout task IDs so they can be cancelled when input arrives early
+    private final Map<UUID, Integer> pendingNamingTaskIds = new HashMap<>();
+    private final Map<UUID, Integer> pendingFeeTaskIds = new HashMap<>();
+
     public WaypointManager(WaypointPlugin plugin, WaypointStorage storage) {
         this.plugin = plugin;
         this.storage = storage;
@@ -105,6 +109,32 @@ public class WaypointManager {
 
     public void clearPendingFeeInput(UUID playerUuid) {
         pendingFeeInput.remove(playerUuid);
+    }
+
+    // --- Timeout task ID management ---
+
+    public void setPendingNamingTaskId(UUID uuid, int taskId) { pendingNamingTaskIds.put(uuid, taskId); }
+    public int getPendingNamingTaskId(UUID uuid) { return pendingNamingTaskIds.getOrDefault(uuid, -1); }
+    public void clearPendingNamingTaskId(UUID uuid) { pendingNamingTaskIds.remove(uuid); }
+
+    public void setPendingFeeTaskId(UUID uuid, int taskId) { pendingFeeTaskIds.put(uuid, taskId); }
+    public int getPendingFeeTaskId(UUID uuid) { return pendingFeeTaskIds.getOrDefault(uuid, -1); }
+    public void clearPendingFeeTaskId(UUID uuid) { pendingFeeTaskIds.remove(uuid); }
+
+    // --- Lookup by name ---
+
+    public Optional<Waypoint> getWaypointByName(String name) {
+        return waypoints.values().stream()
+                .filter(wp -> wp.getName().equalsIgnoreCase(name))
+                .findFirst();
+    }
+
+    public Optional<Waypoint> getWaypointByNameOrId(String input) {
+        try {
+            return getWaypoint(UUID.fromString(input));
+        } catch (IllegalArgumentException e) {
+            return getWaypointByName(input);
+        }
     }
 
     // --- Teleport invites ---

@@ -52,18 +52,9 @@ public class WaypointInteractListener implements Listener {
                 }
                 plugin.getWaypointManager().setPendingNaming(player.getUniqueId(), player.getLocation());
                 player.sendMessage(plugin.msg("prefix") +
-                        plugin.getConfig().getString("messages.name-prompt", "&eType the waypoint name in chat:")
+                        plugin.getConfig().getString("messages.name-prompt", "&eType the waypoint name in chat (or 'cancel'):")
                                 .replace("&", "§"));
-
-                // Auto-cancel after 30 seconds
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (plugin.getWaypointManager().hasPendingNaming(player.getUniqueId())) {
-                        plugin.getWaypointManager().clearPendingNaming(player.getUniqueId());
-                        if (player.isOnline()) {
-                            player.sendMessage(plugin.msg("prefix") + "§cWaypoint naming timed out.");
-                        }
-                    }
-                }, 600L); // 30 seconds
+                plugin.getChatInputListener().schedulePendingNamingTimeout(player);
             }
             return;
         }

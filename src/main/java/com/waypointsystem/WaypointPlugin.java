@@ -20,10 +20,13 @@ public class WaypointPlugin extends JavaPlugin {
     private GuiManager guiManager;
     private TeleportHelper teleportHelper;
     private WaypointCommand commandHandler;
+    private ChatInputListener chatInputListener;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+
+        getLogger().info("WaypointSystem v" + getDescription().getVersion() + " starting...");
 
         waypointStorage = new WaypointStorage(this);
         waypointStorage.load();
@@ -33,9 +36,15 @@ public class WaypointPlugin extends JavaPlugin {
 
         itemManager = new ItemManager(this);
         itemManager.registerRecipes();
+        getLogger().info("Crafting recipe registered.");
 
         economyManager = new EconomyManager(this);
-        economyManager.setup();
+        boolean vaultFound = economyManager.setup();
+        if (vaultFound) {
+            getLogger().info("Vault found - economy/fee system active (" + economyManager.getProviderName() + ").");
+        } else {
+            getLogger().info("Vault not found - fee system disabled.");
+        }
 
         teleportHelper = new TeleportHelper(this);
         guiManager = new GuiManager(this);
@@ -44,11 +53,13 @@ public class WaypointPlugin extends JavaPlugin {
         getCommand("waypoint").setExecutor(commandHandler);
         getCommand("waypoint").setTabCompleter(commandHandler);
 
+        chatInputListener = new ChatInputListener(this);
+
         getServer().getPluginManager().registerEvents(guiManager, this);
         getServer().getPluginManager().registerEvents(new WaypointInteractListener(this), this);
-        getServer().getPluginManager().registerEvents(new ChatInputListener(this), this);
+        getServer().getPluginManager().registerEvents(chatInputListener, this);
 
-        getLogger().info("WaypointSystem enabled.");
+        getLogger().info("WaypointSystem enabled with " + waypointManager.getAllWaypoints().size() + " waypoints loaded.");
     }
 
     @Override
@@ -61,9 +72,8 @@ public class WaypointPlugin extends JavaPlugin {
         waypointStorage.load();
         waypointManager.loadAll();
         economyManager.setup();
+        getLogger().info("WaypointSystem reloaded. Waypoints: " + waypointManager.getAllWaypoints().size());
     }
-
-    // --- Convenience message helpers ---
 
     public String msg(String key) {
         return getConfig().getString("messages." + key, "").replace("&", "§");
@@ -73,12 +83,11 @@ public class WaypointPlugin extends JavaPlugin {
         return getConfig().getString("messages." + key, "").replace("&", "§");
     }
 
-    // --- Getters ---
-
     public WaypointManager getWaypointManager() { return waypointManager; }
     public ItemManager getItemManager() { return itemManager; }
     public EconomyManager getEconomyManager() { return economyManager; }
     public GuiManager getGuiManager() { return guiManager; }
     public TeleportHelper getTeleportHelper() { return teleportHelper; }
     public WaypointCommand getCommandHandler() { return commandHandler; }
+    public ChatInputListener getChatInputListener() { return chatInputListener; }
 }

@@ -57,4 +57,14 @@ public class EconomyManager {
         if (!enabled || economy == null) return String.format("%.2f", amount);
         return economy.format(amount);
     }
+
+    public void deposit(Player player, double amount) {
+        if (!enabled || amount <= 0) return;
+        economy.depositPlayer(player, amount);
+    }
+
+    public String getProviderName() {
+        if (!enabled || economy == null) return "none";
+        return economy.getName();
+    }
 }

@@ -196,7 +196,8 @@ public class GuiManager implements Listener {
             handlers.put(12, () -> {
                 closeGui(player);
                 plugin.getWaypointManager().setPendingFeeInput(player.getUniqueId(), wp.getId());
-                player.sendMessage(plugin.msg("prefix") + "§eType the new fee amount in chat (or §c0§e for free):");
+                player.sendMessage(plugin.msg("prefix") + "§eType the new fee amount in chat (or §c0§e for free, §ecancel§e to abort):");
+                plugin.getChatInputListener().schedulePendingFeeTimeout(player, wp.getId());
             });
 
             // Invite players (only for private waypoints)
