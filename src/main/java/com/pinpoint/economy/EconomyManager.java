@@ -1,17 +1,17 @@
-package com.waypointsystem.economy;
+package com.pinpoint.economy;
 
-import com.waypointsystem.WaypointPlugin;
+import com.pinpoint.PinpointPlugin;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.RegisteredServiceProvider;
 
 public class EconomyManager {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
     private Economy economy = null;
     private boolean enabled = false;
 
-    public EconomyManager(WaypointPlugin plugin) {
+    public EconomyManager(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 

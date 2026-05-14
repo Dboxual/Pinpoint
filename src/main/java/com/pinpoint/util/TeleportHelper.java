@@ -1,8 +1,8 @@
-package com.waypointsystem.util;
+package com.pinpoint.util;
 
-import com.waypointsystem.WaypointPlugin;
-import com.waypointsystem.data.Waypoint;
-import com.waypointsystem.data.WaypointManager;
+import com.pinpoint.PinpointPlugin;
+import com.pinpoint.data.Waypoint;
+import com.pinpoint.data.WaypointManager;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -10,15 +10,15 @@ import org.bukkit.entity.Player;
 
 public class TeleportHelper {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
 
-    public TeleportHelper(WaypointPlugin plugin) {
+    public TeleportHelper(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 
     /**
      * Initiates a delayed teleport with a countdown. All players (including owners)
-     * see the countdown and are subject to cancellation on movement/damage/item-switch/logout.
+     * see the countdown and are subject to cancellation on movement/damage/logout.
      * After the delay, the actual teleport fires and the reuse cooldown is set.
      */
     public void teleport(Player player, Waypoint wp) {

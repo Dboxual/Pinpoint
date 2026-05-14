@@ -1,7 +1,7 @@
-package com.waypointsystem.listeners;
+package com.pinpoint.listeners;
 
-import com.waypointsystem.WaypointPlugin;
-import com.waypointsystem.data.Waypoint;
+import com.pinpoint.PinpointPlugin;
+import com.pinpoint.data.Waypoint;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -18,9 +18,9 @@ import java.util.stream.Collectors;
 
 public class WaypointInteractListener implements Listener {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
 
-    public WaypointInteractListener(WaypointPlugin plugin) {
+    public WaypointInteractListener(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 

@@ -1,6 +1,6 @@
-package com.waypointsystem.data;
+package com.pinpoint.data;
 
-import com.waypointsystem.WaypointPlugin;
+import com.pinpoint.PinpointPlugin;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 
 public class WaypointManager {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
     private final WaypointStorage storage;
     private final Map<UUID, Waypoint> waypoints = new HashMap<>();
 
@@ -39,7 +39,7 @@ public class WaypointManager {
     // Pending delayed teleports: player UUID -> PendingTeleport
     private final Map<UUID, PendingTeleport> pendingTeleports = new HashMap<>();
 
-    public WaypointManager(WaypointPlugin plugin, WaypointStorage storage) {
+    public WaypointManager(PinpointPlugin plugin, WaypointStorage storage) {
         this.plugin = plugin;
         this.storage = storage;
     }

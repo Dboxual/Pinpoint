@@ -1,8 +1,8 @@
-# WaypointSystem — Developer Guide
+# Pinpoint — Developer Guide
 
 ## Project purpose
 
-WaypointSystem is a Paper 1.21.1 plugin that gives players craftable teleportation waypoints managed entirely through inventory GUIs. The goal is a zero-command player experience that works identically on Java and Bedrock (via Geyser). Admins use commands only for giving items and reloading; players interact exclusively through GUIs and right-clicks.
+Pinpoint is a Paper 1.21.1 plugin that gives players craftable teleportation waypoints managed entirely through inventory GUIs. The goal is a zero-command player experience that works identically on Java and Bedrock (via Geyser). Admins use commands only for giving items and reloading; players interact exclusively through GUIs and right-clicks.
 
 ---
 
@@ -23,7 +23,7 @@ WaypointSystem is a Paper 1.21.1 plugin that gives players craftable teleportati
 ## Architecture overview
 
 ```
-WaypointPlugin             — main class, wires all managers together
+PinpointPlugin             — main class, wires all managers together
   ItemManager              — PDC keys, recipe registration, item factories
   WaypointManager          — in-memory waypoint state, location index, pending-input maps
   WaypointStorage          — YAML read/write/delete

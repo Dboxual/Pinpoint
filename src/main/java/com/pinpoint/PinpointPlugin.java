@@ -1,20 +1,20 @@
-package com.waypointsystem;
+package com.pinpoint;
 
-import com.waypointsystem.commands.WaypointCommand;
-import com.waypointsystem.data.WaypointManager;
-import com.waypointsystem.data.WaypointStorage;
-import com.waypointsystem.economy.EconomyManager;
-import com.waypointsystem.gui.GuiManager;
-import com.waypointsystem.item.ItemManager;
-import com.waypointsystem.listeners.BlockBreakListener;
-import com.waypointsystem.listeners.BlockPlaceListener;
-import com.waypointsystem.listeners.ChatInputListener;
-import com.waypointsystem.listeners.TeleportCancelListener;
-import com.waypointsystem.listeners.WaypointInteractListener;
-import com.waypointsystem.util.TeleportHelper;
+import com.pinpoint.commands.WaypointCommand;
+import com.pinpoint.data.WaypointManager;
+import com.pinpoint.data.WaypointStorage;
+import com.pinpoint.economy.EconomyManager;
+import com.pinpoint.gui.GuiManager;
+import com.pinpoint.item.ItemManager;
+import com.pinpoint.listeners.BlockBreakListener;
+import com.pinpoint.listeners.BlockPlaceListener;
+import com.pinpoint.listeners.ChatInputListener;
+import com.pinpoint.listeners.TeleportCancelListener;
+import com.pinpoint.listeners.WaypointInteractListener;
+import com.pinpoint.util.TeleportHelper;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public class WaypointPlugin extends JavaPlugin {
+public class PinpointPlugin extends JavaPlugin {
 
     private WaypointStorage waypointStorage;
     private WaypointManager waypointManager;
@@ -29,7 +29,7 @@ public class WaypointPlugin extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
 
-        getLogger().info("WaypointSystem v" + getDescription().getVersion() + " starting...");
+        getLogger().info("Pinpoint v" + getDescription().getVersion() + " starting...");
 
         waypointStorage = new WaypointStorage(this);
         waypointStorage.load();
@@ -65,12 +65,12 @@ public class WaypointPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TeleportCancelListener(this), this);
         getServer().getPluginManager().registerEvents(chatInputListener, this);
 
-        getLogger().info("WaypointSystem enabled with " + waypointManager.getAllWaypoints().size() + " waypoints loaded.");
+        getLogger().info("Pinpoint enabled with " + waypointManager.getAllWaypoints().size() + " waypoints loaded.");
     }
 
     @Override
     public void onDisable() {
-        getLogger().info("WaypointSystem disabled.");
+        getLogger().info("Pinpoint disabled.");
     }
 
     public void reload() {
@@ -78,7 +78,7 @@ public class WaypointPlugin extends JavaPlugin {
         waypointStorage.load();
         waypointManager.loadAll();
         economyManager.setup();
-        getLogger().info("WaypointSystem reloaded. Waypoints: " + waypointManager.getAllWaypoints().size());
+        getLogger().info("Pinpoint reloaded. Waypoints: " + waypointManager.getAllWaypoints().size());
     }
 
     public String msg(String key) {

@@ -1,6 +1,6 @@
-package com.waypointsystem.listeners;
+package com.pinpoint.listeners;
 
-import com.waypointsystem.WaypointPlugin;
+import com.pinpoint.PinpointPlugin;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -10,9 +10,9 @@ import org.bukkit.inventory.ItemStack;
 
 public class BlockPlaceListener implements Listener {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
 
-    public BlockPlaceListener(WaypointPlugin plugin) {
+    public BlockPlaceListener(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 

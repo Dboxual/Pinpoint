@@ -1,7 +1,7 @@
-package com.waypointsystem.listeners;
+package com.pinpoint.listeners;
 
-import com.waypointsystem.WaypointPlugin;
-import com.waypointsystem.data.Waypoint;
+import com.pinpoint.PinpointPlugin;
+import com.pinpoint.data.Waypoint;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -19,9 +19,9 @@ public class ChatInputListener implements Listener {
     private static final int TIMEOUT_TICKS = 1200; // 60 seconds
     private static final String CANCEL_KEYWORD = "cancel";
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
 
-    public ChatInputListener(WaypointPlugin plugin) {
+    public ChatInputListener(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 
@@ -175,7 +175,7 @@ public class ChatInputListener implements Listener {
         plugin.getWaypointManager().setPendingRenamingTaskId(uuid, taskId);
     }
 
-    // --- Called by WaypointInteractListener when starting a naming session ---
+    // --- Called by BlockPlaceListener when starting a naming session ---
 
     public void schedulePendingNamingTimeout(Player player) {
         UUID uuid = player.getUniqueId();

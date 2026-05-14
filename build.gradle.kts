@@ -2,8 +2,8 @@ plugins {
     java
 }
 
-group = "com.waypointsystem"
-version = "1.0.7"
+group = "com.pinpoint"
+version = "1.0.8"
 description = "WaypointSystem"
 
 java {
@@ -30,7 +30,7 @@ tasks.processResources {
 }
 
 tasks.jar {
-    archiveBaseName.set("WaypointSystem")
+    archiveBaseName.set("Pinpoint")
     archiveVersion.set(version.toString())
     archiveClassifier.set("")
 }

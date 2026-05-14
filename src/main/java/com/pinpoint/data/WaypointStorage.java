@@ -1,6 +1,6 @@
-package com.waypointsystem.data;
+package com.pinpoint.data;
 
-import com.waypointsystem.WaypointPlugin;
+import com.pinpoint.PinpointPlugin;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -10,11 +10,11 @@ import java.util.logging.Level;
 
 public class WaypointStorage {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
     private File dataFile;
     private YamlConfiguration data;
 
-    public WaypointStorage(WaypointPlugin plugin) {
+    public WaypointStorage(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 

@@ -1,9 +1,8 @@
-name: WaypointSystem
-version: '1.0.7'
-main: com.waypointsystem.WaypointPlugin
+name: Pinpoint
+version: '1.0.8'
+main: com.pinpoint.PinpointPlugin
 api-version: '1.21'
 description: Geyser-compatible craftable waypoint system
-authors: [WaypointSystem]
 softdepend: [Vault, Geyser-Spigot]
 
 commands:

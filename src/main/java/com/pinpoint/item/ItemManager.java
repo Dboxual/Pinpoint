@@ -1,6 +1,6 @@
-package com.waypointsystem.item;
+package com.pinpoint.item;
 
-import com.waypointsystem.WaypointPlugin;
+import com.pinpoint.PinpointPlugin;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -17,14 +17,14 @@ import java.util.List;
 
 public class ItemManager {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
 
     // Waypoint block item — PDC tag for the Lodestone item in inventory
     public final NamespacedKey KEY_WAYPOINT_BLOCK;
     // Waypoint Pearl — PDC tag for the Ender Pearl navigation item
     public final NamespacedKey KEY_WAYPOINT_PEARL;
 
-    public ItemManager(WaypointPlugin plugin) {
+    public ItemManager(PinpointPlugin plugin) {
         this.plugin = plugin;
         KEY_WAYPOINT_BLOCK = new NamespacedKey(plugin, "waypoint_block");
         KEY_WAYPOINT_PEARL = new NamespacedKey(plugin, "waypoint_pearl");

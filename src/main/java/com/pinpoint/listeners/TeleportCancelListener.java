@@ -1,7 +1,7 @@
-package com.waypointsystem.listeners;
+package com.pinpoint.listeners;
 
-import com.waypointsystem.WaypointPlugin;
-import com.waypointsystem.data.WaypointManager;
+import com.pinpoint.PinpointPlugin;
+import com.pinpoint.data.WaypointManager;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -13,9 +13,9 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 public class TeleportCancelListener implements Listener {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
 
-    public TeleportCancelListener(WaypointPlugin plugin) {
+    public TeleportCancelListener(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 

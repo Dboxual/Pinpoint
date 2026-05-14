@@ -1,4 +1,4 @@
-package com.waypointsystem.data;
+package com.pinpoint.data;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;

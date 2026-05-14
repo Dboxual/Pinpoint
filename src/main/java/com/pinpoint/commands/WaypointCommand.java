@@ -1,8 +1,8 @@
-package com.waypointsystem.commands;
+package com.pinpoint.commands;
 
-import com.waypointsystem.WaypointPlugin;
-import com.waypointsystem.data.Waypoint;
-import com.waypointsystem.data.WaypointManager;
+import com.pinpoint.PinpointPlugin;
+import com.pinpoint.data.Waypoint;
+import com.pinpoint.data.WaypointManager;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -18,9 +18,9 @@ import java.util.UUID;
 
 public class WaypointCommand implements CommandExecutor, TabCompleter {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
 
-    public WaypointCommand(WaypointPlugin plugin) {
+    public WaypointCommand(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 
@@ -107,7 +107,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
     }
 
     // /waypoint give <player> waypoint [amount]
-    // /waypoint give <player> orb <waypointNameOrId> [amount]
+    // /waypoint give <player> pearl [amount]
     private void handleGive(CommandSender sender, String[] args) {
         if (!sender.hasPermission("waypoint.give")) {
             sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));

@@ -1,8 +1,8 @@
-package com.waypointsystem.gui;
+package com.pinpoint.gui;
 
-import com.waypointsystem.WaypointPlugin;
-import com.waypointsystem.data.Waypoint;
-import com.waypointsystem.data.WaypointManager;
+import com.pinpoint.PinpointPlugin;
+import com.pinpoint.data.Waypoint;
+import com.pinpoint.data.WaypointManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -24,11 +24,11 @@ import net.kyori.adventure.text.format.TextDecoration;
 
 public class GuiManager implements Listener {
 
-    private final WaypointPlugin plugin;
+    private final PinpointPlugin plugin;
     private final Map<UUID, Map<Integer, Runnable>> openGuis = new HashMap<>();
     private final Map<UUID, Inventory> playerInventories = new HashMap<>();
 
-    public GuiManager(WaypointPlugin plugin) {
+    public GuiManager(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 
@@ -75,10 +75,6 @@ public class GuiManager implements Listener {
 
     // --- Disambiguation ---
 
-    /**
-     * Returns the set of lower-case waypoint names that appear more than once
-     * in the given collection. Used to decide when to append (#XXXX) suffixes.
-     */
     private Set<String> duplicateNames(Collection<Waypoint> pool) {
         Set<String> seen = new HashSet<>();
         Set<String> dupes = new HashSet<>();
@@ -89,10 +85,6 @@ public class GuiManager implements Listener {
         return dupes;
     }
 
-    /**
-     * Returns the display name for a waypoint, appending "(#XXXX)" only when
-     * the name collides with another waypoint in the visible pool.
-     */
     private String label(Waypoint wp, Set<String> dupes) {
         if (dupes.contains(wp.getName().toLowerCase())) {
             return wp.getName() + " (#" + WaypointManager.shortId(wp.getId()) + ")";
@@ -429,10 +421,6 @@ public class GuiManager implements Listener {
         }
     }
 
-    /**
-     * Resolves a display label for a single waypoint, computing duplicates
-     * from the player's accessible set on demand.
-     */
     private String labelForPlayer(Waypoint wp, UUID playerUuid) {
         List<Waypoint> accessible = plugin.getWaypointManager().getAccessibleWaypoints(playerUuid);
         return label(wp, duplicateNames(accessible));

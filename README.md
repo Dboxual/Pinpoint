@@ -1,4 +1,4 @@
-# WaypointSystem
+# Pinpoint
 
 A Geyser/Bedrock-compatible craftable waypoint system for Paper 1.21.1. Players craft and place a **Waypoint Block** in the world, name it, then manage teleportation, fees, and player invites through GUI menus. A **Waypoint Pearl** item lets players access all their waypoints from anywhere — no command memorization required.
 

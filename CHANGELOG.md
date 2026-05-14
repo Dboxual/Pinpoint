@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.8 — 2026-05-14
+### Changed
+- **Plugin renamed to Pinpoint** — package changed from `com.waypointsystem` to `com.pinpoint`, main class renamed from `WaypointPlugin` to `PinpointPlugin`. All gameplay commands, permissions, and data files are unchanged.
+
+---
+
 ## v1.0.7 — 2026-05-14
 ### Changed
 - **Teleport countdown no longer cancels on item switch** — players may freely change their held item during the countdown. Only movement, damage, and logout still cancel it.
