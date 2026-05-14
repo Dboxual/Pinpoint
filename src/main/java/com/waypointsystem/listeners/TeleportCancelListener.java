@@ -8,7 +8,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
@@ -36,11 +35,6 @@ public class TeleportCancelListener implements Listener {
     public void onEntityDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         cancelTeleport(player, plugin.msg("prefix") + plugin.msgCfg("teleport-cancelled-damaged"));
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onItemHeld(PlayerItemHeldEvent event) {
-        cancelTeleport(event.getPlayer(), plugin.msg("prefix") + plugin.msgCfg("teleport-cancelled-item"));
     }
 
     @EventHandler

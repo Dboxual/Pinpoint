@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.7 — 2026-05-14
+### Changed
+- **Teleport countdown no longer cancels on item switch** — players may freely change their held item during the countdown. Only movement, damage, and logout still cancel it.
+
+### Removed
+- `teleport-cancelled-item` message key (no longer fired); remove from any custom `config.yml` if present
+
+---
+
 ## v1.0.6 — 2026-05-14
 ### Added
 - **Teleport countdown** — all teleports (pearl, block right-click, invite acceptance) now count down for `teleport-delay-seconds` (default: 10) before firing, showing "Teleporting in Xs... don't move."

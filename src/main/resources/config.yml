@@ -46,4 +46,3 @@ messages:
   teleport-countdown: "&eTeleporting in &b%ds&e... don't move."
   teleport-cancelled-moved: "&cTeleport cancelled — you moved."
   teleport-cancelled-damaged: "&cTeleport cancelled — you took damage."
-  teleport-cancelled-item: "&cTeleport cancelled — you switched items."

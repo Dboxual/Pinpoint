@@ -44,7 +44,7 @@ WaypointPlugin             — main class, wires all managers together
 
 **Pending-input pattern:** Any chat input flow (naming, fee, rename) stores state in `WaypointManager` maps keyed by player UUID. `ChatInputListener.onChat` checks each map in priority order (rename → naming → fee). Each flow has a companion timeout task whose ID is stored so it can be cancelled early. Naming cancel/timeout also restores the physical block and refunds the item.
 
-**Teleport countdown:** All teleports go through `TeleportHelper.teleport()`, which schedules a delayed task (`teleport-delay-seconds`, default 10). A `PendingTeleport` record (player ID, waypoint ID, start location, task ID) is stored in `WaypointManager`. `TeleportCancelListener` cancels the task on block-position move, damage, item-switch, or logout. When the task fires it re-validates the waypoint ID before calling `doTeleport()`. After a successful teleport the reuse cooldown (`teleport-cooldown-seconds`) is set for all players including owners.
+**Teleport countdown:** All teleports go through `TeleportHelper.teleport()`, which schedules a delayed task (`teleport-delay-seconds`, default 10). A `PendingTeleport` record (player ID, waypoint ID, start location, task ID) is stored in `WaypointManager`. `TeleportCancelListener` cancels the task on block-position move, damage, or logout (item-switch does NOT cancel). When the task fires it re-validates the waypoint ID before calling `doTeleport()`. After a successful teleport the reuse cooldown (`teleport-cooldown-seconds`) is set for all players including owners.
 
 ---
 

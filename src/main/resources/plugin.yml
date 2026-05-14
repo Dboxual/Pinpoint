@@ -1,5 +1,5 @@
 name: WaypointSystem
-version: '1.0.6'
+version: '1.0.7'
 main: com.waypointsystem.WaypointPlugin
 api-version: '1.21'
 description: Geyser-compatible craftable waypoint system
