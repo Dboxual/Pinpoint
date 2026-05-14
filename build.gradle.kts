@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.waypointsystem"
-version = "1.0.3"
+version = "1.0.4"
 description = "WaypointSystem"
 
 java {

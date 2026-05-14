@@ -29,6 +29,10 @@ public class WaypointManager {
     // Recall Orb use timestamps for cooldown enforcement
     private final Map<UUID, Long> recallOrbCooldowns = new HashMap<>();
 
+    // Pending rename inputs: player UUID -> waypoint UUID being renamed
+    private final Map<UUID, UUID> pendingRenaming = new HashMap<>();
+    private final Map<UUID, Integer> pendingRenamingTaskIds = new HashMap<>();
+
     public WaypointManager(WaypointPlugin plugin, WaypointStorage storage) {
         this.plugin = plugin;
         this.storage = storage;
@@ -123,6 +127,17 @@ public class WaypointManager {
     public void setPendingFeeTaskId(UUID uuid, int taskId) { pendingFeeTaskIds.put(uuid, taskId); }
     public int getPendingFeeTaskId(UUID uuid) { return pendingFeeTaskIds.getOrDefault(uuid, -1); }
     public void clearPendingFeeTaskId(UUID uuid) { pendingFeeTaskIds.remove(uuid); }
+
+    // --- Pending renaming ---
+
+    public void setPendingRenaming(UUID playerUuid, UUID waypointId) { pendingRenaming.put(playerUuid, waypointId); }
+    public UUID getPendingRenaming(UUID playerUuid) { return pendingRenaming.get(playerUuid); }
+    public boolean hasPendingRenaming(UUID playerUuid) { return pendingRenaming.containsKey(playerUuid); }
+    public void clearPendingRenaming(UUID playerUuid) { pendingRenaming.remove(playerUuid); }
+
+    public void setPendingRenamingTaskId(UUID uuid, int taskId) { pendingRenamingTaskIds.put(uuid, taskId); }
+    public int getPendingRenamingTaskId(UUID uuid) { return pendingRenamingTaskIds.getOrDefault(uuid, -1); }
+    public void clearPendingRenamingTaskId(UUID uuid) { pendingRenamingTaskIds.remove(uuid); }
 
     // --- Lookup by name ---
 

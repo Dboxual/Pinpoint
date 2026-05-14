@@ -197,10 +197,52 @@ public class GuiManager implements Listener {
                 closeGui(player);
                 plugin.getItemManager().giveRecallOrb(player, wp);
             });
+
+            inv.setItem(15, makeItem(Material.NAME_TAG, "Rename Waypoint",
+                    List.of(colorLine("Type a new name in chat", NamedTextColor.YELLOW))));
+            handlers.put(15, () -> {
+                closeGui(player);
+                plugin.getWaypointManager().setPendingRenaming(player.getUniqueId(), wp.getId());
+                player.sendMessage(plugin.msg("prefix") +
+                        String.format(plugin.msgCfg("rename-prompt"), wp.getName()));
+                plugin.getChatInputListener().schedulePendingRenameTimeout(player, wp.getId());
+            });
+
+            inv.setItem(16, makeItem(Material.TNT, "Delete Waypoint",
+                    List.of(colorLine("Permanently removes this waypoint", NamedTextColor.RED),
+                            colorLine("This cannot be undone!", NamedTextColor.DARK_RED))));
+            handlers.put(16, () -> openConfirmDeleteGui(player, wp));
         }
 
         inv.setItem(22, makeItem(Material.ARROW, "Back", List.of()));
         handlers.put(22, () -> openHubGui(player, wp.getId()));
+
+        openGui(player, inv, handlers);
+    }
+
+    public void openConfirmDeleteGui(Player player, Waypoint wp) {
+        String wpLabel = labelForPlayer(wp, player.getUniqueId());
+        Inventory inv = Bukkit.createInventory(null, 27,
+                Component.text("Delete: " + wpLabel + "?").color(NamedTextColor.RED));
+        Map<Integer, Runnable> handlers = new HashMap<>();
+        fillBorder(inv, 3);
+
+        inv.setItem(13, makeItem(Material.PAPER, wpLabel,
+                List.of(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY),
+                        colorLine("This cannot be undone!", NamedTextColor.RED))));
+
+        inv.setItem(11, makeItem(Material.LIME_WOOL, "Cancel",
+                List.of(colorLine("Go back, keep waypoint", NamedTextColor.GREEN))));
+        handlers.put(11, () -> openManageGui(player, wp));
+
+        inv.setItem(15, makeItem(Material.RED_WOOL, "Confirm Delete",
+                List.of(colorLine("Permanently deletes this waypoint", NamedTextColor.RED))));
+        handlers.put(15, () -> {
+            plugin.getWaypointManager().deleteWaypoint(wp.getId());
+            closeGui(player);
+            player.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("waypoint-deleted"), wp.getName()));
+        });
 
         openGui(player, inv, handlers);
     }

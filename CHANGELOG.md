@@ -1,5 +1,22 @@
 # WaypointSystem Changelog
 
+## [1.0.4] - 2026-05-14
+### Added
+- Owner can delete a waypoint from the Manage GUI — requires confirmation in a new Confirm Delete GUI; deletion removes it from storage and makes any linked Recall Orbs invalid
+- Owner can rename a waypoint from the Manage GUI — reuses the chat input flow with `cancel` support and 60-second timeout; held item name tag updated automatically if it matches
+- `settings.require-owner-for-orb-invites` config option (default: `true`) — when enabled, only the waypoint owner can use a Recall Orb to invite other players; non-owners can still right-click to self-teleport
+- New messages: `waypoint-deleted`, `waypoint-renamed`, `rename-prompt`, `orb-invalid`
+
+### Changed
+- Waypoint limit (`max-waypoints-per-player`) is now enforced at right-click time (before the name prompt) instead of only at naming commit; gives a clear message with the current limit
+- Invalid Recall Orb PDC data now shows `orb-invalid` message instead of silently failing
+- Manage GUI expanded with Rename (Name Tag, slot 15) and Delete (TNT, slot 16) buttons for owners
+
+### Fixed
+- Recall Orb invite flow in `onPlayerInteractEntity` now shows `orb-invalid` instead of silently returning when PDC data is missing or malformed
+
+---
+
 ## [1.0.3] - 2026-05-14
 ### Added
 - `/waypoint list` — shows all accessible waypoints (owned, public, invited) with name, owner, public/private, and fee

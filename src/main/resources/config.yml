@@ -9,6 +9,8 @@ settings:
   max-waypoints-per-player: 10
   # Whether Recall Orbs can be used to send teleport invites to other players.
   allow-recall-orb-invites: true
+  # Whether only the waypoint owner can use a Recall Orb to invite others (non-owners can still self-teleport).
+  require-owner-for-orb-invites: true
   # Seconds before a pending teleport invite expires.
   invite-timeout: 60
 
@@ -35,3 +37,7 @@ messages:
   waypoint-limit-reached: "&cYou have reached the maximum of &e%d&c waypoints."
   cooldown-active: "&cPlease wait &e%ds&c before using this again."
   recall-orb-invites-disabled: "&cRecall Orb invites are disabled on this server."
+  waypoint-deleted: "&aWaypoint &b%s&a has been deleted."
+  waypoint-renamed: "&aWaypoint renamed to &b%s&a."
+  rename-prompt: "&eType a new name for &b%s&e (or &ccancel&e):"
+  orb-invalid: "&cThis Recall Orb is no longer valid."

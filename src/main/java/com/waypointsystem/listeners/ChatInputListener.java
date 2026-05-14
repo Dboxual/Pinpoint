@@ -29,6 +29,60 @@ public class ChatInputListener implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
+        // --- Waypoint renaming (checked before naming) ---
+        if (plugin.getWaypointManager().hasPendingRenaming(uuid)) {
+            event.setCancelled(true);
+            String input = event.getMessage().trim();
+
+            if (input.equalsIgnoreCase(CANCEL_KEYWORD)) {
+                cancelRenaming(player, uuid);
+                return;
+            }
+
+            if (input.isEmpty()) {
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("name-empty")));
+                return;
+            }
+            if (input.length() > 32) {
+                plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("name-too-long")));
+                return;
+            }
+
+            int taskId = plugin.getWaypointManager().getPendingRenamingTaskId(uuid);
+            if (taskId != -1) plugin.getServer().getScheduler().cancelTask(taskId);
+            plugin.getWaypointManager().clearPendingRenamingTaskId(uuid);
+
+            UUID waypointId = plugin.getWaypointManager().getPendingRenaming(uuid);
+            plugin.getWaypointManager().clearPendingRenaming(uuid);
+
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                plugin.getWaypointManager().getWaypoint(waypointId).ifPresentOrElse(wp -> {
+                    if (!wp.isOwner(uuid)) {
+                        player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner"));
+                        return;
+                    }
+                    wp.setName(input);
+                    plugin.getWaypointManager().saveWaypoint(wp);
+
+                    // Update held item name tag if it is linked to this waypoint
+                    ItemStack hand = player.getInventory().getItemInMainHand();
+                    if (plugin.getItemManager().isNamedWaypointItem(hand)) {
+                        String heldId = plugin.getItemManager().getWaypointId(hand);
+                        if (waypointId.toString().equals(heldId)) {
+                            player.getInventory().setItemInMainHand(
+                                    plugin.getItemManager().createNamedWaypointItem(waypointId, input));
+                        }
+                    }
+
+                    player.sendMessage(plugin.msg("prefix") +
+                            String.format(plugin.msgCfg("waypoint-renamed"), input));
+                }, () -> player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("waypoint-not-found")));
+            });
+            return;
+        }
+
         // --- Waypoint naming ---
         if (plugin.getWaypointManager().hasPendingNaming(uuid)) {
             event.setCancelled(true);
@@ -120,6 +174,22 @@ public class ChatInputListener implements Listener {
         }
     }
 
+    // --- Called by GuiManager when starting a rename session ---
+
+    public void schedulePendingRenameTimeout(Player player, UUID waypointId) {
+        UUID uuid = player.getUniqueId();
+        int taskId = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (plugin.getWaypointManager().hasPendingRenaming(uuid)) {
+                plugin.getWaypointManager().clearPendingRenaming(uuid);
+                plugin.getWaypointManager().clearPendingRenamingTaskId(uuid);
+                if (player.isOnline()) {
+                    player.sendMessage(plugin.msg("prefix") + "§cWaypoint rename timed out. No changes made.");
+                }
+            }
+        }, TIMEOUT_TICKS).getTaskId();
+        plugin.getWaypointManager().setPendingRenamingTaskId(uuid, taskId);
+    }
+
     // --- Called by WaypointInteractListener when starting a naming session ---
 
     public void schedulePendingNamingTimeout(Player player) {
@@ -148,6 +218,15 @@ public class ChatInputListener implements Listener {
             }
         }, TIMEOUT_TICKS).getTaskId();
         plugin.getWaypointManager().setPendingFeeTaskId(uuid, taskId);
+    }
+
+    private void cancelRenaming(Player player, UUID uuid) {
+        int taskId = plugin.getWaypointManager().getPendingRenamingTaskId(uuid);
+        if (taskId != -1) plugin.getServer().getScheduler().cancelTask(taskId);
+        plugin.getWaypointManager().clearPendingRenaming(uuid);
+        plugin.getWaypointManager().clearPendingRenamingTaskId(uuid);
+        plugin.getServer().getScheduler().runTask(plugin, () ->
+                player.sendMessage(plugin.msg("prefix") + "§cWaypoint rename cancelled."));
     }
 
     private void cancelNaming(Player player, UUID uuid) {

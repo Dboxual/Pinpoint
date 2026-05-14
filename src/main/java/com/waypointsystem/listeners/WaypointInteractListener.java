@@ -53,6 +53,12 @@ public class WaypointInteractListener implements Listener {
                     player.sendMessage(plugin.msg("prefix") + "§cYou already have a pending waypoint name input.");
                     return;
                 }
+                if (plugin.getWaypointManager().isAtWaypointLimit(player.getUniqueId())) {
+                    int max = plugin.getWaypointManager().getMaxWaypoints();
+                    player.sendMessage(plugin.msg("prefix") +
+                            String.format(plugin.msgCfg("waypoint-limit-reached"), max));
+                    return;
+                }
                 plugin.getWaypointManager().setPendingNaming(player.getUniqueId(), player.getLocation());
                 player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("name-prompt"));
                 plugin.getChatInputListener().schedulePendingNamingTimeout(player);
@@ -96,7 +102,10 @@ public class WaypointInteractListener implements Listener {
 
         String waypointIdStr = plugin.getItemManager().getRecallWaypointId(item);
         String orbIdStr = plugin.getItemManager().getRecallOrbId(item);
-        if (waypointIdStr == null || orbIdStr == null) return;
+        if (waypointIdStr == null || orbIdStr == null) {
+            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("orb-invalid"));
+            return;
+        }
 
         UUID waypointId;
         UUID orbId;
@@ -104,6 +113,7 @@ public class WaypointInteractListener implements Listener {
             waypointId = UUID.fromString(waypointIdStr);
             orbId = UUID.fromString(orbIdStr);
         } catch (Exception e) {
+            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("orb-invalid"));
             return;
         }
 
@@ -114,6 +124,12 @@ public class WaypointInteractListener implements Listener {
         }
 
         Waypoint wp = wpOpt.get();
+
+        if (plugin.getConfig().getBoolean("settings.require-owner-for-orb-invites", true)
+                && !wp.isOwner(player.getUniqueId())) {
+            player.sendMessage(plugin.msg("prefix") + "§cOnly the waypoint owner can send invites with a Recall Orb.");
+            return;
+        }
 
         if (plugin.getWaypointManager().hasPendingInvite(target.getUniqueId())) {
             player.sendMessage(plugin.msg("prefix") + "§c" + target.getName() + " already has a pending invite.");
@@ -153,10 +169,18 @@ public class WaypointInteractListener implements Listener {
         }
 
         String waypointIdStr = plugin.getItemManager().getRecallWaypointId(item);
-        if (waypointIdStr == null) return;
+        if (waypointIdStr == null) {
+            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("orb-invalid"));
+            return;
+        }
 
         UUID waypointId;
-        try { waypointId = UUID.fromString(waypointIdStr); } catch (Exception e) { return; }
+        try {
+            waypointId = UUID.fromString(waypointIdStr);
+        } catch (Exception e) {
+            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("orb-invalid"));
+            return;
+        }
 
         Optional<Waypoint> wpOpt = plugin.getWaypointManager().getWaypoint(waypointId);
         if (wpOpt.isEmpty()) {
