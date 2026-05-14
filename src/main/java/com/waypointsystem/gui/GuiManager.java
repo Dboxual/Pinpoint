@@ -168,10 +168,19 @@ public class GuiManager implements Listener {
         handlers.put(10, () -> plugin.getTeleportHelper().teleport(player, wp));
 
         if (isOwner) {
-            Material pubMat = wp.isPublic() ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE;
-            String pubLabel = wp.isPublic() ? "Public (click to make Private)" : "Private (click to make Public)";
-            inv.setItem(11, makeItem(pubMat, pubLabel, List.of()));
+            // --- Visibility toggle (Emerald = public, Redstone = private) ---
+            Material pubMat = wp.isPublic() ? Material.EMERALD_BLOCK : Material.REDSTONE_BLOCK;
+            String pubLabel = wp.isPublic() ? "Visibility: PUBLIC" : "Visibility: PRIVATE";
+            List<Component> pubLore = new ArrayList<>();
+            pubLore.add(wp.isPublic()
+                    ? colorLine("Anyone can visit this waypoint.", NamedTextColor.GREEN)
+                    : colorLine("Only you and invited players can visit.", NamedTextColor.RED));
+            pubLore.add(colorLine("Click to toggle visibility", NamedTextColor.GRAY));
+            inv.setItem(11, makeItem(pubMat, pubLabel, pubLore));
             handlers.put(11, () -> {
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
                 wp.setPublic(!wp.isPublic());
                 plugin.getWaypointManager().saveWaypoint(wp);
                 openManageGui(player, wp);
@@ -181,22 +190,33 @@ public class GuiManager implements Listener {
                     List.of(colorLine("Current: " + plugin.getEconomyManager().format(wp.getFee()), NamedTextColor.GOLD),
                             colorLine("Chat: type new fee amount", NamedTextColor.GRAY))));
             handlers.put(12, () -> {
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
                 closeGui(player);
                 plugin.getWaypointManager().setPendingFeeInput(player.getUniqueId(), wp.getId());
-                player.sendMessage(plugin.msg("prefix") + "§eType the new fee (or §c0§e for free, §ecancel§e to abort):");
+                player.sendMessage(plugin.msg("prefix") + "§eType the new fee (or §c0§e for free, §ccancel§e to abort):");
                 plugin.getChatInputListener().schedulePendingFeeTimeout(player, wp.getId());
             });
 
             if (!wp.isPublic()) {
                 inv.setItem(13, makeItem(Material.PLAYER_HEAD, "Invite Players",
                         List.of(colorLine("Click to manage invites", NamedTextColor.YELLOW))));
-                handlers.put(13, () -> openInviteGui(player, wp));
+                handlers.put(13, () -> {
+                    if (!wp.isOwner(player.getUniqueId())) {
+                        player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                    }
+                    openInviteGui(player, wp);
+                });
             }
 
             inv.setItem(14, makeItem(Material.ENDER_PEARL, "Get Waypoint Pearl",
                     List.of(colorLine("Gives you a Waypoint Pearl", NamedTextColor.YELLOW),
                             colorLine("Use it to access all your waypoints", NamedTextColor.GRAY))));
             handlers.put(14, () -> {
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
                 closeGui(player);
                 plugin.getItemManager().giveWaypointPearl(player);
             });
@@ -204,6 +224,9 @@ public class GuiManager implements Listener {
             inv.setItem(15, makeItem(Material.NAME_TAG, "Rename Waypoint",
                     List.of(colorLine("Type a new name in chat", NamedTextColor.YELLOW))));
             handlers.put(15, () -> {
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
                 closeGui(player);
                 plugin.getWaypointManager().setPendingRenaming(player.getUniqueId(), wp.getId());
                 player.sendMessage(plugin.msg("prefix") +
@@ -214,7 +237,12 @@ public class GuiManager implements Listener {
             inv.setItem(16, makeItem(Material.TNT, "Delete Waypoint",
                     List.of(colorLine("Permanently removes this waypoint", NamedTextColor.RED),
                             colorLine("This cannot be undone!", NamedTextColor.DARK_RED))));
-            handlers.put(16, () -> openConfirmDeleteGui(player, wp));
+            handlers.put(16, () -> {
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
+                openConfirmDeleteGui(player, wp);
+            });
         }
 
         inv.setItem(22, makeItem(Material.ARROW, "Back", List.of()));

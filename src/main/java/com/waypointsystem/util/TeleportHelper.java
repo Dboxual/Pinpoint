@@ -2,6 +2,7 @@ package com.waypointsystem.util;
 
 import com.waypointsystem.WaypointPlugin;
 import com.waypointsystem.data.Waypoint;
+import com.waypointsystem.data.WaypointManager;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -15,22 +16,61 @@ public class TeleportHelper {
         this.plugin = plugin;
     }
 
+    /**
+     * Initiates a delayed teleport with a countdown. All players (including owners)
+     * see the countdown and are subject to cancellation on movement/damage/item-switch/logout.
+     * After the delay, the actual teleport fires and the reuse cooldown is set.
+     */
     public void teleport(Player player, Waypoint wp) {
-        // Cooldown applies to non-owners only
-        if (!wp.isOwner(player.getUniqueId())) {
-            if (plugin.getWaypointManager().isOnRecallCooldown(player.getUniqueId())) {
-                long secs = plugin.getWaypointManager().getRemainingCooldownSeconds(player.getUniqueId());
-                player.sendMessage(plugin.msg("prefix") +
-                        String.format(plugin.msgCfg("cooldown-active"), secs));
-                return;
-            }
+        // Reuse cooldown — applies to all players
+        if (plugin.getWaypointManager().isOnRecallCooldown(player.getUniqueId())) {
+            long secs = plugin.getWaypointManager().getRemainingCooldownSeconds(player.getUniqueId());
+            player.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("cooldown-active"), secs));
+            return;
         }
 
-        // World loaded?
+        // Already waiting on a previous teleport?
+        if (plugin.getWaypointManager().hasPendingTeleport(player.getUniqueId())) {
+            player.sendMessage(plugin.msg("prefix") + "§cYou already have a teleport in progress.");
+            return;
+        }
+
+        int delaySeconds = plugin.getConfig().getInt("settings.teleport-delay-seconds", 10);
+
+        if (delaySeconds <= 0) {
+            doTeleport(player, wp);
+            return;
+        }
+
+        WaypointManager.PendingTeleport pt = new WaypointManager.PendingTeleport(
+                player.getUniqueId(), wp.getId(), player.getLocation().clone());
+        plugin.getWaypointManager().setPendingTeleport(player.getUniqueId(), pt);
+
+        player.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("teleport-countdown"), delaySeconds));
+
+        int taskId = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!plugin.getWaypointManager().hasPendingTeleport(player.getUniqueId())) return;
+            plugin.getWaypointManager().clearPendingTeleport(player.getUniqueId());
+
+            // Re-validate waypoint in case it was deleted during the countdown
+            plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
+                    current -> doTeleport(player, current),
+                    () -> player.sendMessage(plugin.msg("prefix") + "§cWaypoint no longer exists.")
+            );
+        }, delaySeconds * 20L).getTaskId();
+
+        pt.taskId = taskId;
+    }
+
+    // --- Internal: immediate teleport (called after countdown elapses) ---
+
+    public void doTeleport(Player player, Waypoint wp) {
         World world = org.bukkit.Bukkit.getWorld(wp.getWorldName());
         if (world == null) {
-            player.sendMessage(plugin.msg("prefix") + "§cCannot teleport — world §e" + wp.getWorldName()
-                    + "§c is not loaded.");
+            player.sendMessage(plugin.msg("prefix") + "§cCannot teleport — world §e"
+                    + wp.getWorldName() + "§c is not loaded.");
             return;
         }
 
@@ -40,7 +80,6 @@ public class TeleportHelper {
             return;
         }
 
-        // Charge fee before moving anything
         double fee = wp.getFee();
         if (fee > 0 && plugin.getEconomyManager().isEnabled()) {
             if (!plugin.getEconomyManager().hasBalance(player, fee)) {
@@ -59,7 +98,6 @@ public class TeleportHelper {
         if (safe == null) {
             player.sendMessage(plugin.msg("prefix") + "§cCould not find a safe landing spot near §e"
                     + wp.getName() + "§c. Teleport aborted.");
-            // Refund fee on failed teleport
             if (fee > 0 && plugin.getEconomyManager().isEnabled()) {
                 plugin.getEconomyManager().deposit(player, fee);
                 player.sendMessage(plugin.msg("prefix") + "§aFee refunded.");
@@ -70,10 +108,7 @@ public class TeleportHelper {
         player.teleport(safe);
         player.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("waypoint-teleported"), wp.getName()));
-
-        if (!wp.isOwner(player.getUniqueId())) {
-            plugin.getWaypointManager().setRecallCooldown(player.getUniqueId());
-        }
+        plugin.getWaypointManager().setRecallCooldown(player.getUniqueId());
     }
 
     // Returns null if no safe spot found within radius.

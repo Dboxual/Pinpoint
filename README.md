@@ -112,7 +112,8 @@ All settings live in `config.yml` under the `settings:` key.
 |---|---|---|
 | `default-fee` | `0` | Starting fee for newly created waypoints. `0` = free. |
 | `safe-teleport-radius` | `5` | Block radius to scan for a safe landing spot. |
-| `teleport-cooldown-seconds` | `3` | Seconds a player must wait between Recall Orb uses. |
+| `teleport-delay-seconds` | `10` | Countdown before teleporting. Player must stand still or the teleport cancels. |
+| `teleport-cooldown-seconds` | `3` | Reuse cooldown after a successful teleport (applies to all players). |
 | `max-waypoints-per-player` | `10` | Max waypoints one player may own. `0` = unlimited. |
 | `allow-recall-orb-invites` | `true` | Whether Recall Orbs can be used to invite other players. |
 | `require-owner-for-orb-invites` | `true` | If true, only the waypoint owner can send invites via orb. |

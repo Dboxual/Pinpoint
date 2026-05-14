@@ -9,6 +9,7 @@ import com.waypointsystem.item.ItemManager;
 import com.waypointsystem.listeners.BlockBreakListener;
 import com.waypointsystem.listeners.BlockPlaceListener;
 import com.waypointsystem.listeners.ChatInputListener;
+import com.waypointsystem.listeners.TeleportCancelListener;
 import com.waypointsystem.listeners.WaypointInteractListener;
 import com.waypointsystem.util.TeleportHelper;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -61,6 +62,7 @@ public class WaypointPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new WaypointInteractListener(this), this);
         getServer().getPluginManager().registerEvents(new BlockPlaceListener(this), this);
         getServer().getPluginManager().registerEvents(new BlockBreakListener(this), this);
+        getServer().getPluginManager().registerEvents(new TeleportCancelListener(this), this);
         getServer().getPluginManager().registerEvents(chatInputListener, this);
 
         getLogger().info("WaypointSystem enabled with " + waypointManager.getAllWaypoints().size() + " waypoints loaded.");

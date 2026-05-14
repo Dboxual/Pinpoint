@@ -36,6 +36,9 @@ public class WaypointManager {
     // Block location index: "world,x,y,z" -> waypoint UUID
     private final Map<String, UUID> locationIndex = new HashMap<>();
 
+    // Pending delayed teleports: player UUID -> PendingTeleport
+    private final Map<UUID, PendingTeleport> pendingTeleports = new HashMap<>();
+
     public WaypointManager(WaypointPlugin plugin, WaypointStorage storage) {
         this.plugin = plugin;
         this.storage = storage;
@@ -244,6 +247,26 @@ public class WaypointManager {
 
     public Collection<Waypoint> getAllWaypoints() {
         return Collections.unmodifiableCollection(waypoints.values());
+    }
+
+    // --- Pending delayed teleports ---
+
+    public void setPendingTeleport(UUID playerUuid, PendingTeleport tp) { pendingTeleports.put(playerUuid, tp); }
+    public PendingTeleport getPendingTeleport(UUID playerUuid) { return pendingTeleports.get(playerUuid); }
+    public boolean hasPendingTeleport(UUID playerUuid) { return pendingTeleports.containsKey(playerUuid); }
+    public void clearPendingTeleport(UUID playerUuid) { pendingTeleports.remove(playerUuid); }
+
+    public static class PendingTeleport {
+        public final UUID playerId;
+        public final UUID waypointId;
+        public int taskId = -1;
+        public final Location startLocation;
+
+        public PendingTeleport(UUID playerId, UUID waypointId, Location startLocation) {
+            this.playerId = playerId;
+            this.waypointId = waypointId;
+            this.startLocation = startLocation;
+        }
     }
 
     public static class TeleportInvite {

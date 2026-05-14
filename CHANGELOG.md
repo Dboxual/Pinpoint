@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.0.6 — 2026-05-14
+### Added
+- **Teleport countdown** — all teleports (pearl, block right-click, invite acceptance) now count down for `teleport-delay-seconds` (default: 10) before firing, showing "Teleporting in Xs... don't move."
+- **Teleport cancellation** — moving, taking damage, switching held item, or logging out during the countdown cancels the teleport with a specific message per cause
+- `TeleportCancelListener` — new listener handling `PlayerMoveEvent`, `EntityDamageEvent`, `PlayerItemHeldEvent`, `PlayerQuitEvent`
+- `teleport-delay-seconds: 10` config option (countdown before teleporting)
+- `teleport-cooldown-seconds: 3` config option (reuse cooldown after a successful teleport, reduced from 10 since delay already prevents spam)
+- New messages: `teleport-countdown`, `teleport-cancelled-moved`, `teleport-cancelled-damaged`, `teleport-cancelled-item`
+
+### Changed
+- **Cooldown applies to all players** including owners (was non-owners only)
+- **Management buttons protected server-side** — every owner-only GUI action (toggle visibility, set fee, invite, get pearl, rename, delete) now verifies `wp.isOwner` in the click handler, not just at GUI build time
+- **Public/private toggle** replaced glass panes with `EMERALD_BLOCK` ("Visibility: PUBLIC — Anyone can visit") and `REDSTONE_BLOCK` ("Visibility: PRIVATE — Only you and invited players can visit")
+
+---
+
 ## v1.0.5 — 2026-05-14
 ### Changed (breaking redesign)
 - **Waypoint is now a placeable block (Lodestone)** — craft with 8x Quartz + Ender Eye, place in the world; the block IS the waypoint
