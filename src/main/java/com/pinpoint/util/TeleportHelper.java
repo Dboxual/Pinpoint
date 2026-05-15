@@ -85,8 +85,12 @@ public class TeleportHelper {
      */
     public void partyFollow(Player player, Waypoint wp, String travelerName) {
         player.sendMessage(plugin.msg("prefix") + "§aTraveling with §b" + travelerName + "§a...");
-        plugin.getServer().getScheduler().runTaskLater(plugin,
-                () -> doTeleport(player, wp, true), 20L);
+        plugin.getServer().getScheduler().runTaskLater(plugin, () ->
+                plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
+                        current -> doTeleport(player, current, true),
+                        () -> player.sendMessage(plugin.msg("prefix")
+                                + "§cThe waypoint you were following no longer exists.")
+                ), 20L);
     }
 
     // --- Internal: immediate teleport (called after countdown elapses) ---

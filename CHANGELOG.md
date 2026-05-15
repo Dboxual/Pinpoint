@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.2.4 — 2026-05-15
+### Fixed
+- **`TeleportCancelListener.onPlayerMove`** — changed `ignoreCancelled` from `false` to `true`. Previously the handler fired even when another plugin cancelled the `PlayerMoveEvent` (e.g. an anti-cheat blocking movement). Since the player didn't actually move, this incorrectly cancelled their teleport countdown.
+- **`TeleportHelper.partyFollow()`** — now re-validates the waypoint UUID in the 1-second delay task before calling `doTeleport`, consistent with all other teleport paths. Previously, if the waypoint was deleted during the 1-second window, the player would teleport to its old coordinates anyway.
+
+### Changed
+- **README** — complete rewrite to reflect the current feature set: holograms, custom icons, dual teleport delay, party system, and updated config reference. The old README referenced removed config keys (`teleport-delay-seconds`) and features by their pre-v1.0.8 names.
+
+---
+
 ## v1.2.3 — 2026-05-15
 ### Added
 - **Custom waypoint icons** — owners can choose a display icon for their waypoint from a palette of 10 materials: Grass Block, Diamond, Emerald, Nether Star, Ender Pearl, Compass, Chest, Oak Door, Beacon, Lodestone.

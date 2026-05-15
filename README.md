@@ -1,20 +1,23 @@
 # Pinpoint
 
-A Geyser/Bedrock-compatible craftable waypoint system for Paper 1.21.1. Players craft and place a **Waypoint Block** in the world, name it, then manage teleportation, fees, and player invites through GUI menus. A **Waypoint Pearl** item lets players access all their waypoints from anywhere — no command memorization required.
+A Geyser/Bedrock-compatible craftable waypoint system for Paper 1.21.1. Players craft and place a **Waypoint Block** anywhere in the world to create a physical waypoint, then manage everything through inventory GUIs — no command memorization required.
 
 ---
 
 ## Features
 
-- **Craftable Waypoint Blocks** — place a Lodestone-based block anywhere in the world to create a physical waypoint
-- **Block protection** — only the owner or an admin can break a waypoint block; breaking it removes the waypoint
-- **Public/private waypoints** — owners control who can see and use each waypoint
-- **Teleport fees** — optional per-waypoint fee charged via Vault (gracefully disabled without Vault)
-- **Player invites** — right-click a player with a Waypoint Pearl to select a waypoint and send a teleport invite
-- **Waypoint Pearl** — craftable Ender Pearl item that opens a GUI listing all accessible waypoints; right-click a player to invite them
-- **Safe teleporting** — destination scanner finds the nearest safe landing spot automatically
-- **Bedrock/Geyser compatibility** — GUI-first design works with Bedrock clients via Geyser
-- **Configurable limits and cooldowns** — max waypoints per player, teleport cooldown, invite settings
+- **Craftable Waypoint Blocks** — place a Lodestone-based block anywhere; right-click to open the hub GUI
+- **Floating holograms** — each placed block displays floating text (name, owner, visibility, fee) that updates in real-time
+- **Custom waypoint icons** — owners pick from 10 material icons shown in all hub and selector GUIs
+- **Block protection** — only the owner or an admin (`waypoint.admin`) can break a waypoint block
+- **Public / private waypoints** — owners control who can see and teleport to each waypoint
+- **Teleport fees** — optional per-waypoint fee charged via Vault (gracefully disabled if Vault is absent)
+- **Player invites** — right-click another player with a Waypoint Pearl to send a teleport invite via GUI
+- **Waypoint Pearl** — Ender Pearl item giving access to all accessible waypoints from anywhere
+- **Party / social system** — link with other players; party members receive Follow/Stay GUI notifications when someone teleports
+- **Dual teleport timing** — block right-clicks teleport instantly; pearl teleports use a 10-second countdown (movement or damage cancels it)
+- **Safe teleporting** — destination scanner automatically finds the nearest safe landing spot
+- **Bedrock / Geyser compatibility** — all flows work through inventory GUIs; shift+right-click pearl and `/party follow` provide fallbacks for Bedrock clients
 
 ---
 
@@ -47,27 +50,39 @@ A Geyser/Bedrock-compatible craftable waypoint system for Paper 1.21.1. Players 
 ## How Players Use It
 
 **Step 1 — Craft a Waypoint Block**
-Use the Waypoint Block recipe (8x Quartz + Ender Eye). You receive a Lodestone-style item named **Waypoint**.
+Use the recipe above (8× Nether Quartz + Ender Eye). You receive a Lodestone-style item.
 
-**Step 2 — Place the block and name it**
-Place the Waypoint block anywhere in the world. A chat prompt immediately asks for a name. Type a name (up to 32 characters) and press Enter. Type `cancel` to abort (the block is removed and returned to you).
+**Step 2 — Place and name it**
+Place the block anywhere. A chat prompt immediately asks for a name (up to 32 characters). Type your name and press Enter — or type `cancel` to abort (the block is removed and returned to your inventory).
 
 **Step 3 — Manage your Waypoint**
-Right-click the placed block to open the **Waypoint Hub** GUI. Click your waypoint to open the **Manage** screen. From there you can:
-- Teleport to the waypoint
-- Toggle public/private
-- Set a teleport fee
-- Invite specific players (for private waypoints)
-- Rename the waypoint
+Right-click the placed block to open the **Waypoint Hub**. Click your waypoint to open the **Manage** screen, where you can:
+- Teleport to the waypoint (instant from the block GUI)
+- Toggle public / private
+- Set a teleport fee (requires Vault)
+- Invite specific players (private waypoints only)
+- Change the display icon
+- Rename or delete the waypoint
 - Get a Waypoint Pearl
-- Delete the waypoint (with confirmation — also removes the block)
 
-**Step 4 — Craft or get a Waypoint Pearl**
-Craft a Waypoint Pearl (4x Ender Pearl + Ender Eye) or get one from the Manage screen. The pearl shows **all waypoints you can access**.
+**Step 4 — Use a Waypoint Pearl**
+Craft a Waypoint Pearl or get one from the Manage screen. With it in hand:
 
-**Step 5 — Teleport and invite players**
-- **Right-click** a Waypoint Pearl in air to open your accessible waypoints and click one to teleport.
-- **Right-click a player** with a Waypoint Pearl to open a waypoint selection screen and send them a teleport invite. They see a GUI to accept or deny; or they can type `/wp accept` / `/wp deny`.
+| Action | Result |
+|---|---|
+| Right-click air or block | Open hub GUI — all accessible waypoints listed |
+| Click a waypoint in the hub | Start a 10-second countdown, then teleport |
+| Shift+right-click air or block | Accept a pending teleport invite **or** follow a party travel offer |
+| Right-click a player | Open waypoint selector to send them a teleport invite |
+| Shift+right-click a player | Send a party link request |
+
+---
+
+## Party System
+
+Shift+right-click another player with your Waypoint Pearl to send a **link request**. The target sees an Accept / Deny GUI (or can type `/party accept` / `/party deny`). Accepting merges both players (and any existing parties) into one group — all members are equal, no ownership hierarchy.
+
+When any party member teleports through a Pinpoint, all online party members receive a **Follow / Stay** inventory GUI and a plain-text hint. Clicking **Follow** teleports them to the same waypoint. Clicking **Stay** dismisses the offer. Bedrock players can type `/party follow` with no arguments to follow the most recent offer.
 
 ---
 
@@ -81,6 +96,12 @@ Craft a Waypoint Pearl (4x Ender Pearl + Ender Eye) or get one from the Manage s
 | `/waypoint list` | List all accessible waypoints in chat |
 | `/waypoint accept` | Accept a pending teleport invite |
 | `/waypoint deny` | Deny a pending teleport invite |
+| `/party` or `/pp` | Open party management GUI |
+| `/party leave` | Leave your current party |
+| `/party disband` | Disband the whole party |
+| `/party remove <player>` | Remove a member from your party |
+| `/party accept` / `/party deny` | Respond to a pending link request |
+| `/party follow` | Follow the most recent party travel offer |
 
 ### Admin commands
 
@@ -96,30 +117,43 @@ Craft a Waypoint Pearl (4x Ender Pearl + Ender Eye) or get one from the Manage s
 
 | Node | Default | Description |
 |---|---|---|
-| `waypoint.use` | `true` | Open GUI, craft/name waypoints, use Recall Orbs |
+| `waypoint.use` | `true` | Open GUI, place/name waypoints, teleport, use pearls |
 | `waypoint.list` | `true` | Use `/waypoint list` |
 | `waypoint.give` | `op` | Use `/waypoint give` |
 | `waypoint.reload` | `op` | Use `/waypoint reload` |
-| `waypoint.admin` | `op` | Inherits `waypoint.give` + `waypoint.reload` |
+| `waypoint.admin` | `op` | Inherits `waypoint.give` + `waypoint.reload` + break any waypoint block |
+| `party.use` | `true` | Use the party / social linking system |
 
 ---
 
-## Configuration
+## Configuration (`config.yml`)
 
-All settings live in `config.yml` under the `settings:` key.
+### `settings:`
 
 | Key | Default | Description |
 |---|---|---|
 | `default-fee` | `0` | Starting fee for newly created waypoints. `0` = free. |
 | `safe-teleport-radius` | `5` | Block radius to scan for a safe landing spot. |
-| `teleport-delay-seconds` | `10` | Countdown before teleporting. Player must stand still or the teleport cancels. |
-| `teleport-cooldown-seconds` | `3` | Reuse cooldown after a successful teleport (applies to all players). |
+| `waypoint-block-teleport-delay-seconds` | `0` | Delay for block right-click teleports. `0` = near-instant. |
+| `waypoint-pearl-teleport-delay-seconds` | `10` | Countdown for pearl-path teleports. Player must stand still. |
+| `teleport-cooldown-seconds` | `3` | Reuse cooldown after any successful teleport (all players). |
 | `max-waypoints-per-player` | `10` | Max waypoints one player may own. `0` = unlimited. |
-| `allow-recall-orb-invites` | `true` | Whether Recall Orbs can be used to invite other players. |
-| `require-owner-for-orb-invites` | `true` | If true, only the waypoint owner can send invites via orb. |
-| `invite-timeout` | `60` | Seconds before a pending teleport invite expires. |
+| `allow-recall-orb-invites` | `true` | Whether Waypoint Pearls can send teleport invites. |
+| `require-owner-for-orb-invites` | `true` | If `true`, only the waypoint owner can send pearl invites. |
+| `invite-timeout` | `60` | Seconds before a teleport invite expires. |
+| `link-request-timeout` | `60` | Seconds before a party link request expires. |
+| `party-travel-offer-timeout` | `30` | Seconds party members have to act on a travel offer. |
 
-All messages are also configurable under `messages:` in `config.yml`. Color codes use the `&` prefix.
+### `holograms:`
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Show floating text above each placed waypoint block. |
+| `height` | `1.8` | Y offset above the block's Y coordinate for the bottom line. |
+| `show-owner` | `true` | Include the owner's name in the hologram. |
+| `show-fee` | `true` | Include the fee / Free line (only shown when Vault is enabled). |
+
+All messages are configurable under `messages:` in `config.yml`. Use `&` color codes.
 
 ---
 
@@ -128,5 +162,5 @@ All messages are also configurable under `messages:` in `config.yml`. Color code
 | Dependency | Type | Notes |
 |---|---|---|
 | [Paper 1.21.1](https://papermc.io) | Required | Tested on Paper 1.21.1 |
-| [Vault](https://www.spigotmc.org/resources/vault.34315/) | Optional | Required only for teleport fees |
-| [Geyser-Spigot](https://geysermc.org) | Optional | Required only for Bedrock client support |
+| [Vault](https://www.spigotmc.org/resources/vault.34315/) | Optional | Required for teleport fees |
+| [Geyser-Spigot](https://geysermc.org) | Optional | Required for Bedrock client support |
