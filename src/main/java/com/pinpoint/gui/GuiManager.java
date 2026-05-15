@@ -24,6 +24,12 @@ import net.kyori.adventure.text.format.TextDecoration;
 
 public class GuiManager implements Listener {
 
+    private static final List<Material> ICON_PALETTE = List.of(
+            Material.GRASS_BLOCK, Material.DIAMOND, Material.EMERALD, Material.NETHER_STAR,
+            Material.ENDER_PEARL, Material.COMPASS, Material.CHEST, Material.OAK_DOOR,
+            Material.BEACON, Material.LODESTONE
+    );
+
     private final PinpointPlugin plugin;
     private final Map<UUID, Map<Integer, Runnable>> openGuis = new HashMap<>();
     private final Map<UUID, Inventory> playerInventories = new HashMap<>();
@@ -115,8 +121,7 @@ public class GuiManager implements Listener {
         int slot = 10;
         for (Waypoint wp : accessible) {
             if (slot >= rows * 9 - 9) break;
-            Material mat = wp.isPublic() ? Material.LIME_DYE : Material.ORANGE_DYE;
-            if (wp.isOwner(player.getUniqueId())) mat = Material.BLUE_DYE;
+            Material mat = wp.getIconMaterial();
 
             List<Component> lore = new ArrayList<>();
             lore.add(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY));
@@ -245,6 +250,17 @@ public class GuiManager implements Listener {
                 }
                 openConfirmDeleteGui(player, wp, fromBlock);
             });
+
+            // Change Icon — slot 20, overrides bottom border glass
+            inv.setItem(20, makeItem(wp.getIconMaterial(), "Change Icon",
+                    List.of(colorLine("Current: " + friendlyName(wp.getIconMaterial()), NamedTextColor.GRAY),
+                            colorLine("Click to choose a different icon", NamedTextColor.YELLOW))));
+            handlers.put(20, () -> {
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
+                openIconSelectGui(player, wp, fromBlock);
+            });
         }
 
         inv.setItem(22, makeItem(Material.ARROW, "Back", List.of()));
@@ -260,7 +276,7 @@ public class GuiManager implements Listener {
         Map<Integer, Runnable> handlers = new HashMap<>();
         fillBorder(inv, 3);
 
-        inv.setItem(13, makeItem(Material.PAPER, wpLabel,
+        inv.setItem(13, makeItem(wp.getIconMaterial(), wpLabel,
                 List.of(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY),
                         colorLine("This cannot be undone!", NamedTextColor.RED))));
 
@@ -291,7 +307,7 @@ public class GuiManager implements Listener {
                 Component.text("Use: " + wpLabel).color(NamedTextColor.AQUA));
         Map<Integer, Runnable> handlers = new HashMap<>();
 
-        inv.setItem(13, makeItem(Material.PAPER, wpLabel,
+        inv.setItem(13, makeItem(wp.getIconMaterial(), wpLabel,
                 List.of(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY),
                         colorLine(wp.isPublic() ? "Public" : "Private",
                                 wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED))));
@@ -378,7 +394,7 @@ public class GuiManager implements Listener {
             lore.add(colorLine(wp.isPublic() ? "Public" : "Private",
                     wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED));
             lore.add(colorLine("Click to invite " + target.getName(), NamedTextColor.YELLOW));
-            inv.setItem(slot, makeItem(Material.ENDER_PEARL, label(wp, dupes), lore));
+            inv.setItem(slot, makeItem(wp.getIconMaterial(), label(wp, dupes), lore));
             final Waypoint finalWp = wp;
             handlers.put(slot, () -> sendInvite(inviter, target, finalWp));
             slot++;
@@ -390,6 +406,45 @@ public class GuiManager implements Listener {
         handlers.put(cancelSlot, () -> closeGui(inviter));
 
         openGui(inviter, inv, handlers);
+    }
+
+    public void openIconSelectGui(Player player, Waypoint wp, boolean fromBlock) {
+        Inventory inv = Bukkit.createInventory(null, 36,
+                Component.text("Choose Icon").color(NamedTextColor.AQUA));
+        Map<Integer, Runnable> handlers = new HashMap<>();
+        fillBorder(inv, 4);
+
+        // 10 icons fill slots 10-16 (first row of content) then 19-21 (second row)
+        int[] slots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21};
+        Material current = wp.getIconMaterial();
+
+        for (int i = 0; i < ICON_PALETTE.size() && i < slots.length; i++) {
+            Material mat = ICON_PALETTE.get(i);
+            int slot = slots[i];
+            List<Component> lore = new ArrayList<>();
+            if (mat == current) {
+                lore.add(colorLine("Currently selected", NamedTextColor.GREEN));
+            } else {
+                lore.add(colorLine("Click to select", NamedTextColor.YELLOW));
+            }
+            inv.setItem(slot, makeItem(mat, friendlyName(mat), lore));
+            final Material finalMat = mat;
+            handlers.put(slot, () -> {
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
+                wp.setIconMaterial(finalMat);
+                plugin.getWaypointManager().saveWaypoint(wp);
+                player.sendMessage(plugin.msg("prefix") + "§aIcon changed to §b" + friendlyName(finalMat) + "§a.");
+                openManageGui(player, wp, fromBlock);
+            });
+        }
+
+        // Back button overrides bottom border glass at slot 31 (center of bottom row)
+        inv.setItem(31, makeItem(Material.ARROW, "Back", List.of()));
+        handlers.put(31, () -> openManageGui(player, wp, fromBlock));
+
+        openGui(player, inv, handlers);
     }
 
     private void sendInvite(Player inviter, Player target, Waypoint wp) {
@@ -465,5 +520,15 @@ public class GuiManager implements Listener {
 
     private Component colorLine(String text, NamedTextColor color) {
         return Component.text(text).color(color).decoration(TextDecoration.ITALIC, false);
+    }
+
+    private String friendlyName(Material mat) {
+        StringBuilder sb = new StringBuilder();
+        for (String word : mat.name().split("_")) {
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(Character.toUpperCase(word.charAt(0)));
+            sb.append(word.substring(1).toLowerCase());
+        }
+        return sb.toString();
     }
 }

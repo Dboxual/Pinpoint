@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.2.3 — 2026-05-15
+### Added
+- **Custom waypoint icons** — owners can choose a display icon for their waypoint from a palette of 10 materials: Grass Block, Diamond, Emerald, Nether Star, Ender Pearl, Compass, Chest, Oak Door, Beacon, Lodestone.
+- **Icon Select GUI** — accessible from the Manage GUI via a "Change Icon" button (slot 20, bottom row). Shows the full palette with the currently selected icon highlighted. Only the owner can change the icon.
+- `icon` field added to `waypoints.yml` — persisted as a material name string. Existing waypoints without this field default to `LODESTONE` on load.
+
+### Changed
+- **Hub GUI** — waypoints now display their chosen icon material instead of lime/orange/blue dyes. Status (Public/Private) and ownership remain visible in lore.
+- **Use, Confirm-Delete, and Invite-Select GUIs** — info and option items now use the waypoint's chosen icon instead of fixed Paper/Ender Pearl materials.
+
+---
+
 ## v1.2.2 — 2026-05-14
 ### Added
 - **Waypoint holograms** — each placed Lodestone block now displays floating text above it showing the waypoint name, owner, public/private status, and fee.

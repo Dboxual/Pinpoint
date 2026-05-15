@@ -68,6 +68,10 @@ public class WaypointStorage {
                 org.bukkit.Location loc = new org.bukkit.Location(world, x, y, z, yaw, pitch);
                 Waypoint wp = new Waypoint(id, name, ownerUuid, ownerName, loc, isPublic, fee);
 
+                String iconStr = data.getString(path + "icon", "LODESTONE");
+                org.bukkit.Material iconMat = org.bukkit.Material.matchMaterial(iconStr);
+                if (iconMat != null) wp.setIconMaterial(iconMat);
+
                 List<String> invited = data.getStringList(path + "invited");
                 for (String s : invited) {
                     try { wp.addInvite(UUID.fromString(s)); } catch (Exception ignored) {}
@@ -99,6 +103,7 @@ public class WaypointStorage {
         data.set(path + "pitch", (double) wp.getPitch());
         data.set(path + "public", wp.isPublic());
         data.set(path + "fee", wp.getFee());
+        data.set(path + "icon", wp.getIconMaterialName());
 
         List<String> invited = new ArrayList<>();
         wp.getInvitedPlayers().forEach(u -> invited.add(u.toString()));

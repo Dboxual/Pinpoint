@@ -2,6 +2,7 @@ package com.pinpoint.data;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 
 import java.util.*;
@@ -19,6 +20,7 @@ public class Waypoint {
     private double fee;
     private final Set<UUID> invitedPlayers = new HashSet<>();
     private final Set<UUID> linkedRecallOrbs = new HashSet<>();
+    private String iconMaterial = "LODESTONE";
 
     public Waypoint(UUID id, String name, UUID ownerUuid, String ownerName,
                     Location location, boolean isPublic, double fee) {
@@ -77,4 +79,12 @@ public class Waypoint {
     public Set<UUID> getLinkedRecallOrbs() { return Collections.unmodifiableSet(linkedRecallOrbs); }
     public void addRecallOrb(UUID orbId) { linkedRecallOrbs.add(orbId); }
     public void removeRecallOrb(UUID orbId) { linkedRecallOrbs.remove(orbId); }
+
+    public Material getIconMaterial() {
+        Material mat = Material.matchMaterial(iconMaterial);
+        return mat != null ? mat : Material.LODESTONE;
+    }
+
+    public void setIconMaterial(Material mat) { this.iconMaterial = mat.name(); }
+    public String getIconMaterialName() { return iconMaterial; }
 }
