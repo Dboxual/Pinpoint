@@ -497,7 +497,7 @@ public class GuiManager implements Listener {
         inviter.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("invite-sent"), target.getName()));
 
-        openAcceptDenyGui(target, inviter.getName(), wp.getName());
+        // Chat-only notification — no GUI is forced open so shift+Pearl works immediately on all clients
         target.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("invite-received"), inviter.getName(), wp.getName()));
 

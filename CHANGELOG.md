@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.2.7 — 2026-05-15
+### Fixed
+- **Shift+Pearl now accepts teleport invites immediately** — the Accept/Deny GUI was previously forced open on the invitee's screen the moment an invite arrived. On Bedrock (and any client with an inventory visible), this blocked the `PlayerInteractEvent` path, making shift+right-click appear to do nothing useful. Fix: `sendInvite()` no longer calls `openAcceptDenyGui` on the target. The target receives a chat-only notification instead ("Shift+Pearl to accept, or /wp accept | /wp deny"). Shift+right-click with the Waypoint Pearl now accepts immediately, starts the teleport countdown, and opens no GUI.
+- **`processAccept()` closes any open GUI before starting countdown** — if any GUI happens to be open when the player accepts (via command or shift-click), it is cleanly closed before the countdown begins.
+
+### Changed
+- **`invite-received` message** — updated to guide players: "Shift+Pearl to accept, or /wp accept | /wp deny."
+- The `openAcceptDenyGui` method remains available in code; party travel offer GUI (`openTravelOfferGui`) is unchanged.
+
+---
+
 ## v1.2.6 — 2026-05-15
 ### Fixed
 - **Invite Players GUI** — completely rewritten. Previously the GUI only showed already-invited players (empty when none existed, making the button appear broken). It now lists all online players (excluding the waypoint owner), with a player-head icon per player. Green lore = already invited (click to remove access). Yellow lore = not yet invited (click to grant access). The invitee receives a chat notification when added.

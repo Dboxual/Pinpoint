@@ -155,6 +155,8 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
 
     public void processAccept(Player player) {
         UUID uuid = player.getUniqueId();
+        // Close any open GUI so countdown can begin unobstructed
+        plugin.getGuiManager().closeGui(player);
         if (!plugin.getWaypointManager().hasPendingInvite(uuid)) {
             player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-pending-invite"));
             return;

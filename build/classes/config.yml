@@ -36,7 +36,7 @@ messages:
   fee-charged: "&aCharged &e%s&a for teleport."
   fee-insufficient: "&cYou need &e%s&c to teleport there."
   invite-sent: "&aInvite sent to &b%s&a."
-  invite-received: "&b%s &ahas invited you to &b%s&a. Click Accept/Deny or type &e/wp accept&a or &e/wp deny&a."
+  invite-received: "&b%s &ahas invited you to &b%s&a. &eShift+Pearl&a to accept, or &e/wp accept&a | &e/wp deny&a."
   invite-accepted: "&a%s accepted your invite."
   invite-denied: "&c%s denied your invite."
   invite-expired: "&cYour invite has expired."
