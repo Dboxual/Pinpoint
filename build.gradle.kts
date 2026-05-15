@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.pinpoint"
-version = "1.2.4"
+version = "1.2.5"
 description = "WaypointSystem"
 
 java {

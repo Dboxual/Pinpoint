@@ -1,5 +1,5 @@
 name: Pinpoint
-version: '1.2.4'
+version: '1.2.5'
 main: com.pinpoint.PinpointPlugin
 api-version: '1.21'
 description: Geyser-compatible craftable waypoint system
@@ -28,6 +28,7 @@ commands:
       /party accept       - Accept a pending link request
       /party deny         - Deny a pending link request
       /party follow       - Follow your party's latest travel
+      /party stay         - Dismiss the current travel offer
     aliases: [pp]
 
 permissions:
@@ -38,7 +39,7 @@ permissions:
     description: Use /waypoint list
     default: true
   waypoint.give:
-    description: Use /waypoint give to hand out waypoint items and recall orbs
+    description: Use /waypoint give to hand out waypoint items and pearls
     default: op
   waypoint.reload:
     description: Use /waypoint reload

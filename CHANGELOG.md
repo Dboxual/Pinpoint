@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.5 — 2026-05-15
+### Changed
+- **`config.yml`** — removed vestigial keys left over from the pre-v1.0.5 Recall Orb era: `allow-recall-orb-invites`, `require-owner-for-orb-invites`, `recall-orb-created`, `recall-orb-invites-disabled`, `orb-invalid`, `vault-missing`. None of these keys were referenced in any Java source file; deleting them cleans up false documentation.
+- **`plugin.yml`** — bumped version to 1.2.5; fixed `waypoint.give` permission description (was "recall orbs", now "waypoint items and pearls"); added `/party stay` to the party command usage block.
+
+---
+
 ## v1.2.4 — 2026-05-15
 ### Fixed
 - **`TeleportCancelListener.onPlayerMove`** — changed `ignoreCancelled` from `false` to `true`. Previously the handler fired even when another plugin cancelled the `PlayerMoveEvent` (e.g. an anti-cheat blocking movement). Since the player didn't actually move, this incorrectly cancelled their teleport countdown.

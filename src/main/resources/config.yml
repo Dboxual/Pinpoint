@@ -11,10 +11,6 @@ settings:
   teleport-cooldown-seconds: 3
   # Maximum number of waypoints a single player may own (0 = unlimited).
   max-waypoints-per-player: 10
-  # Whether Recall Orbs can be used to send teleport invites to other players.
-  allow-recall-orb-invites: true
-  # Whether only the waypoint owner can use a Recall Orb to invite others (non-owners can still self-teleport).
-  require-owner-for-orb-invites: true
   # Seconds before a pending teleport invite expires.
   invite-timeout: 60
   # Seconds before a party link request expires.
@@ -39,14 +35,12 @@ messages:
   waypoint-teleported: "&aTeleported to &b%s&a."
   fee-charged: "&aCharged &e%s&a for teleport."
   fee-insufficient: "&cYou need &e%s&c to teleport there."
-  vault-missing: "&eVault not found - fee system disabled."
   invite-sent: "&aInvite sent to &b%s&a."
   invite-received: "&b%s &ahas invited you to &b%s&a. Click Accept/Deny or type &e/wp accept&a or &e/wp deny&a."
   invite-accepted: "&a%s accepted your invite."
   invite-denied: "&c%s denied your invite."
   invite-expired: "&cYour invite has expired."
   no-pending-invite: "&cYou have no pending invite."
-  recall-orb-created: "&aRecall Orb created for &b%s&a."
   not-owner: "&cOnly the owner can do that."
   waypoint-not-found: "&cWaypoint not found."
   name-prompt: "&eType the waypoint name in chat (or &ccancel&e):"
@@ -54,11 +48,9 @@ messages:
   name-empty: "&cName cannot be empty."
   waypoint-limit-reached: "&cYou have reached the maximum of &e%d&c waypoints."
   cooldown-active: "&cPlease wait &e%ds&c before using this again."
-  recall-orb-invites-disabled: "&cRecall Orb invites are disabled on this server."
   waypoint-deleted: "&aWaypoint &b%s&a has been deleted."
   waypoint-renamed: "&aWaypoint renamed to &b%s&a."
   rename-prompt: "&eType a new name for &b%s&e (or &ccancel&e):"
-  orb-invalid: "&cThis Recall Orb is no longer valid."
   teleport-block: "&aTeleporting..."
   teleport-countdown: "&ePearl teleporting in &b%ds&e... don't move."
   teleport-cancelled-moved: "&cTeleport cancelled — you moved."
