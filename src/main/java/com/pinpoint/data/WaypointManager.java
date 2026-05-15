@@ -260,6 +260,7 @@ public class WaypointManager {
         public final UUID playerId;
         public final UUID waypointId;
         public int taskId = -1;
+        public int countdownTaskId = -1;
         public final Location startLocation;
 
         public PendingTeleport(UUID playerId, UUID waypointId, Location startLocation) {

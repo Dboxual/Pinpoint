@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.2.6 — 2026-05-15
+### Fixed
+- **Invite Players GUI** — completely rewritten. Previously the GUI only showed already-invited players (empty when none existed, making the button appear broken). It now lists all online players (excluding the waypoint owner), with a player-head icon per player. Green lore = already invited (click to remove access). Yellow lore = not yet invited (click to grant access). The invitee receives a chat notification when added.
+- **Teleport fee now pays the waypoint owner** — previously `charge()` withdrew from the teleporter but the money went nowhere. `EconomyManager.depositToOwner(UUID, double)` now uses Vault's `OfflinePlayer` API to credit the owner even when they are offline. If the deposit fails for any reason, the player is refunded and teleport is aborted.
+
+### Changed
+- **Hologram default height raised to 2.8** — holograms were clipping into players standing at the block. Existing configs that already set `holograms.height` are unaffected.
+- **Block teleport delay default changed to 5s** — was 0 (instant). Block-GUI teleports now show the same action bar countdown as pearl teleports. Set `waypoint-block-teleport-delay-seconds: 0` in config to restore instant behaviour.
+- **Action bar countdown for all teleport types** — every teleport now shows a persistent action bar message ("Teleporting in Xs... Don't move.") that ticks down each second using the Adventure API. The action bar is cleared on teleport completion or cancellation. Party-follow teleports show "Following <name>..." on the action bar for the 1-second lead-in. Cancellation messages still also appear in chat.
+
+---
+
 ## v1.2.5 — 2026-05-15
 ### Changed
 - **`config.yml`** — removed vestigial keys left over from the pre-v1.0.5 Recall Orb era: `allow-recall-orb-invites`, `require-owner-for-orb-invites`, `recall-orb-created`, `recall-orb-invites-disabled`, `orb-invalid`, `vault-missing`. None of these keys were referenced in any Java source file; deleting them cleans up false documentation.

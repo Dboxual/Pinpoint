@@ -18,6 +18,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.*;
 import java.util.List;
 
+import org.bukkit.inventory.meta.SkullMeta;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -328,23 +330,54 @@ public class GuiManager implements Listener {
 
     public void openInviteGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
-        Set<UUID> invited = wp.getInvitedPlayers();
-        int rows = Math.min(6, Math.max(3, (int) Math.ceil((invited.size() + 9) / 9.0) + 1));
+
+        // Online players excluding the waypoint owner
+        List<Player> onlinePlayers = new ArrayList<>(Bukkit.getOnlinePlayers());
+        onlinePlayers.removeIf(p -> p.getUniqueId().equals(wp.getOwnerUuid()));
+
+        int rows = Math.max(3, Math.min(6, (int) Math.ceil((onlinePlayers.size() + 9) / 9.0) + 1));
         Inventory inv = Bukkit.createInventory(null, rows * 9,
-                Component.text("Invites: " + wpLabel).color(NamedTextColor.AQUA));
+                Component.text("Invite Players: " + wpLabel).color(NamedTextColor.AQUA));
         Map<Integer, Runnable> handlers = new HashMap<>();
         fillBorder(inv, rows);
 
+        if (onlinePlayers.isEmpty()) {
+            inv.setItem(13, makeItem(Material.BARRIER, "No other players online",
+                    List.of(colorLine("No players available to invite.", NamedTextColor.GRAY))));
+        }
+
         int slot = 10;
-        for (UUID invitedUuid : invited) {
+        for (Player online : onlinePlayers) {
             if (slot >= rows * 9 - 9) break;
-            String name = Bukkit.getOfflinePlayer(invitedUuid).getName();
-            if (name == null) name = invitedUuid.toString().substring(0, 8);
-            inv.setItem(slot, makeItem(Material.PAPER, name,
-                    List.of(colorLine("Click to remove invite", NamedTextColor.RED))));
-            final UUID finalUuid = invitedUuid;
+            boolean isInvited = wp.isInvited(online.getUniqueId());
+            List<Component> lore = new ArrayList<>();
+            if (isInvited) {
+                lore.add(colorLine("Already invited", NamedTextColor.GREEN));
+                lore.add(colorLine("Click to remove access", NamedTextColor.RED));
+            } else {
+                lore.add(colorLine("Click to grant access", NamedTextColor.YELLOW));
+            }
+            inv.setItem(slot, makeSkull(online, online.getName(), lore));
+            final Player finalOnline = online;
+            final boolean finalIsInvited = isInvited;
             handlers.put(slot, () -> {
-                wp.removeInvite(finalUuid);
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
+                if (finalIsInvited) {
+                    wp.removeInvite(finalOnline.getUniqueId());
+                    player.sendMessage(plugin.msg("prefix")
+                            + "§cRemoved access for §b" + finalOnline.getName() + "§c.");
+                } else {
+                    wp.addInvite(finalOnline.getUniqueId());
+                    player.sendMessage(plugin.msg("prefix")
+                            + "§b" + finalOnline.getName() + " §acan now access §b" + wp.getName() + "§a.");
+                    if (finalOnline.isOnline()) {
+                        finalOnline.sendMessage(plugin.msg("prefix")
+                                + "§b" + player.getName()
+                                + " §ahas given you access to waypoint §b" + wp.getName() + "§a.");
+                    }
+                }
                 plugin.getWaypointManager().saveWaypoint(wp);
                 openInviteGui(player, wp, fromBlock);
             });
@@ -506,6 +539,17 @@ public class GuiManager implements Listener {
             inv.setItem(i * 9, glass);
             inv.setItem(i * 9 + 8, glass);
         }
+    }
+
+    private ItemStack makeSkull(Player owner, String name, List<Component> lore) {
+        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) item.getItemMeta();
+        meta.setOwningPlayer(owner);
+        meta.displayName(Component.text(name).color(NamedTextColor.WHITE)
+                .decoration(TextDecoration.ITALIC, false));
+        if (!lore.isEmpty()) meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
     }
 
     private ItemStack makeItem(Material mat, String name, List<Component> lore) {

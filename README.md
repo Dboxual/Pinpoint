@@ -134,12 +134,10 @@ When any party member teleports through a Pinpoint, all online party members rec
 |---|---|---|
 | `default-fee` | `0` | Starting fee for newly created waypoints. `0` = free. |
 | `safe-teleport-radius` | `5` | Block radius to scan for a safe landing spot. |
-| `waypoint-block-teleport-delay-seconds` | `0` | Delay for block right-click teleports. `0` = near-instant. |
+| `waypoint-block-teleport-delay-seconds` | `5` | Countdown for block right-click teleports. `0` = near-instant. |
 | `waypoint-pearl-teleport-delay-seconds` | `10` | Countdown for pearl-path teleports. Player must stand still. |
 | `teleport-cooldown-seconds` | `3` | Reuse cooldown after any successful teleport (all players). |
 | `max-waypoints-per-player` | `10` | Max waypoints one player may own. `0` = unlimited. |
-| `allow-recall-orb-invites` | `true` | Whether Waypoint Pearls can send teleport invites. |
-| `require-owner-for-orb-invites` | `true` | If `true`, only the waypoint owner can send pearl invites. |
 | `invite-timeout` | `60` | Seconds before a teleport invite expires. |
 | `link-request-timeout` | `60` | Seconds before a party link request expires. |
 | `party-travel-offer-timeout` | `30` | Seconds party members have to act on a travel offer. |
@@ -149,7 +147,7 @@ When any party member teleports through a Pinpoint, all online party members rec
 | Key | Default | Description |
 |---|---|---|
 | `enabled` | `true` | Show floating text above each placed waypoint block. |
-| `height` | `1.8` | Y offset above the block's Y coordinate for the bottom line. |
+| `height` | `2.8` | Y offset above the block's Y coordinate for the bottom line. |
 | `show-owner` | `true` | Include the owner's name in the hologram. |
 | `show-fee` | `true` | Include the fee / Free line (only shown when Vault is enabled). |
 

@@ -3,6 +3,9 @@ package com.pinpoint.util;
 import com.pinpoint.PinpointPlugin;
 import com.pinpoint.data.Waypoint;
 import com.pinpoint.data.WaypointManager;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -27,12 +30,12 @@ public class TeleportHelper {
     }
 
     /**
-     * Block-path teleport: near-instant by default (waypoint-block-teleport-delay-seconds = 0).
+     * Block-path teleport: 5-second countdown by default (waypoint-block-teleport-delay-seconds).
      * Still runs fee and safe-spot checks. Cooldown still applies.
      */
     public void teleportFromBlock(Player player, Waypoint wp) {
         startTeleport(player, wp,
-                plugin.getConfig().getInt("settings.waypoint-block-teleport-delay-seconds", 0),
+                plugin.getConfig().getInt("settings.waypoint-block-teleport-delay-seconds", 5),
                 true);
     }
 
@@ -53,6 +56,7 @@ public class TeleportHelper {
 
         if (delaySeconds <= 0) {
             player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("teleport-block"));
+            player.sendActionBar(Component.text("Teleporting...").color(NamedTextColor.GREEN));
             doTeleport(player, wp, false);
             return;
         }
@@ -64,9 +68,29 @@ public class TeleportHelper {
         player.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("teleport-countdown"), delaySeconds));
 
+        // Action bar ticker — counts down every second until teleport fires or is cancelled
+        int[] remaining = {delaySeconds};
+        int countdownTaskId = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (!plugin.getWaypointManager().hasPendingTeleport(player.getUniqueId())) return;
+            if (remaining[0] > 0) {
+                player.sendActionBar(Component.text("Teleporting in ")
+                        .color(NamedTextColor.YELLOW)
+                        .append(Component.text(remaining[0] + "s")
+                                .color(NamedTextColor.WHITE)
+                                .decorate(TextDecoration.BOLD))
+                        .append(Component.text("... Don't move.")
+                                .color(NamedTextColor.YELLOW)));
+                remaining[0]--;
+            }
+        }, 0L, 20L).getTaskId();
+        pt.countdownTaskId = countdownTaskId;
+
         int taskId = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!plugin.getWaypointManager().hasPendingTeleport(player.getUniqueId())) return;
             plugin.getWaypointManager().clearPendingTeleport(player.getUniqueId());
+            // Stop the countdown ticker and clear action bar
+            if (pt.countdownTaskId != -1) plugin.getServer().getScheduler().cancelTask(pt.countdownTaskId);
+            player.sendActionBar(Component.empty());
 
             // Re-validate waypoint in case it was deleted during the countdown
             plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
@@ -85,6 +109,10 @@ public class TeleportHelper {
      */
     public void partyFollow(Player player, Waypoint wp, String travelerName) {
         player.sendMessage(plugin.msg("prefix") + "§aTraveling with §b" + travelerName + "§a...");
+        player.sendActionBar(Component.text("Following ")
+                .color(NamedTextColor.GREEN)
+                .append(Component.text(travelerName).color(NamedTextColor.AQUA))
+                .append(Component.text("...").color(NamedTextColor.GREEN)));
         plugin.getServer().getScheduler().runTaskLater(plugin, () ->
                 plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
                         current -> doTeleport(player, current, true),
@@ -118,6 +146,17 @@ public class TeleportHelper {
                 return;
             }
             plugin.getEconomyManager().charge(player, fee);
+
+            // Pay the owner (works for offline owners via Vault OfflinePlayer API)
+            boolean paid = plugin.getEconomyManager().depositToOwner(wp.getOwnerUuid(), fee);
+            if (!paid) {
+                // Refund the player — owner deposit failed
+                plugin.getEconomyManager().deposit(player, fee);
+                player.sendMessage(plugin.msg("prefix")
+                        + "§cTeleport fee could not be credited to the owner. Fee refunded.");
+                return;
+            }
+
             player.sendMessage(plugin.msg("prefix") +
                     String.format(plugin.msgCfg("fee-charged"),
                             plugin.getEconomyManager().format(fee)));

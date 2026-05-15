@@ -2,8 +2,13 @@ package com.pinpoint.economy;
 
 import com.pinpoint.PinpointPlugin;
 import net.milkbowl.vault.economy.Economy;
+import net.milkbowl.vault.economy.EconomyResponse;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.RegisteredServiceProvider;
+
+import java.util.UUID;
 
 public class EconomyManager {
 
@@ -51,6 +56,14 @@ public class EconomyManager {
         if (!economy.has(player, amount)) return false;
         economy.withdrawPlayer(player, amount);
         return true;
+    }
+
+    /** Deposit fee income to the waypoint owner (works for offline players). */
+    public boolean depositToOwner(UUID ownerUuid, double amount) {
+        if (!enabled || amount <= 0) return true;
+        OfflinePlayer owner = Bukkit.getOfflinePlayer(ownerUuid);
+        EconomyResponse resp = economy.depositPlayer(owner, amount);
+        return resp.transactionSuccess();
     }
 
     public String format(double amount) {

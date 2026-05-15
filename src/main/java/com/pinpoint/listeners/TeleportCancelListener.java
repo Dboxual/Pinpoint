@@ -2,6 +2,7 @@ package com.pinpoint.listeners;
 
 import com.pinpoint.PinpointPlugin;
 import com.pinpoint.data.WaypointManager;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -50,9 +51,11 @@ public class TeleportCancelListener implements Listener {
         if (!plugin.getWaypointManager().hasPendingTeleport(player.getUniqueId())) return;
         WaypointManager.PendingTeleport pt = plugin.getWaypointManager().getPendingTeleport(player.getUniqueId());
         if (pt.taskId != -1) plugin.getServer().getScheduler().cancelTask(pt.taskId);
+        if (pt.countdownTaskId != -1) plugin.getServer().getScheduler().cancelTask(pt.countdownTaskId);
         plugin.getWaypointManager().clearPendingTeleport(player.getUniqueId());
-        if (message != null && player.isOnline()) {
-            player.sendMessage(message);
+        if (player.isOnline()) {
+            player.sendActionBar(Component.empty()); // Clear the countdown action bar
+            if (message != null) player.sendMessage(message);
         }
     }
 }

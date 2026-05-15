@@ -4,7 +4,7 @@ settings:
   # Radius (in blocks) to search for a safe landing spot near the waypoint.
   safe-teleport-radius: 5
   # Block right-click teleport delay (seconds). 0 = near-instant. Player still needs to pass fee/safe-spot checks.
-  waypoint-block-teleport-delay-seconds: 0
+  waypoint-block-teleport-delay-seconds: 5
   # Pearl right-click teleport delay (seconds). Player must stand still for this long before teleporting.
   waypoint-pearl-teleport-delay-seconds: 10
   # Seconds a player must wait between teleports after a successful one (all players).
@@ -22,7 +22,7 @@ holograms:
   # Whether to display floating info above each placed waypoint block.
   enabled: true
   # Height above the block's Y coordinate where the bottom hologram line appears.
-  height: 1.8
+  height: 2.8
   # Include the owner's name in the hologram.
   show-owner: true
   # Include the fee (or "Free") in the hologram. Only shown when Vault is enabled.
