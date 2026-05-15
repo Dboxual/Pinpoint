@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.2.0 — 2026-05-14
+### Fixed
+- **Infinite follow loop** — party follow teleports now pass `suppressFollowPrompt=true` to `doTeleport()`, so when player B follows player A, A is never re-notified. The follow chain stops at one hop.
+- **Shift-click pearl no longer opens the GUI** — shift+right-click pearl on air/block now checks for a pending waypoint teleport invite first, then a pending party travel offer, and executes the appropriate accept/follow. If nothing is pending it says so. The hub GUI only opens on a normal (non-shift) right-click.
+- **Regular right-click player with pearl** now opens the waypoint invite-select GUI (pick which waypoint to invite that player to), instead of incorrectly opening the hub GUI.
+- **Pending invite and travel offer state cleared on logout** — `TeleportCancelListener` now calls `removeInvite` and `clearLastTravelOffer` when a player disconnects.
+
+### Changed
+- **Travel offers are now GUI-first** — when a party member teleports, all online party members receive a Follow/Stay inventory GUI instead of only a clickable chat message. A plain-text hint `(Shift+Pearl to follow)` is also sent, usable on Bedrock/Geyser without requiring clickable chat.
+- **Stay dismisses the offer state** — clicking Stay (or `/party stay`) now calls `clearLastTravelOffer` so the dismissed offer cannot be accidentally followed later.
+- **`/party follow` clears offer state after accept** — prevents the same offer being followed more than once.
+- Removed Adventure `ClickEvent`/`HoverEvent` imports from `PartyGuiManager` (no longer used).
+
+---
+
 ## v1.1.0 — 2026-05-14
 ### Added
 - **Party system** — persistent social linking between players. Shift+right-click another player with a Waypoint Pearl to send a link request. The receiver gets an Accept/Deny GUI. Accepting merges both players (and any parties they're already in) into one connected group. All members are equal — no ownership hierarchy.

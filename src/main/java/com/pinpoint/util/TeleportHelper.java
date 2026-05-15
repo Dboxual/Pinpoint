@@ -39,7 +39,7 @@ public class TeleportHelper {
         int delaySeconds = plugin.getConfig().getInt("settings.teleport-delay-seconds", 10);
 
         if (delaySeconds <= 0) {
-            doTeleport(player, wp);
+            doTeleport(player, wp, false);
             return;
         }
 
@@ -56,7 +56,7 @@ public class TeleportHelper {
 
             // Re-validate waypoint in case it was deleted during the countdown
             plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
-                    current -> doTeleport(player, current),
+                    current -> doTeleport(player, current, false),
                     () -> player.sendMessage(plugin.msg("prefix") + "§cWaypoint no longer exists.")
             );
         }, delaySeconds * 20L).getTaskId();
@@ -67,16 +67,17 @@ public class TeleportHelper {
     /**
      * Party-follow teleport: skips the normal countdown and hold-still requirement.
      * A 1-second delay gives the "traveling together" feeling without the full queue.
+     * suppressFollowPrompt=true so the follow itself does not trigger another notification chain.
      */
     public void partyFollow(Player player, Waypoint wp, String travelerName) {
         player.sendMessage(plugin.msg("prefix") + "§aTraveling with §b" + travelerName + "§a...");
         plugin.getServer().getScheduler().runTaskLater(plugin,
-                () -> doTeleport(player, wp), 20L);
+                () -> doTeleport(player, wp, true), 20L);
     }
 
     // --- Internal: immediate teleport (called after countdown elapses) ---
 
-    public void doTeleport(Player player, Waypoint wp) {
+    public void doTeleport(Player player, Waypoint wp, boolean suppressFollowPrompt) {
         World world = org.bukkit.Bukkit.getWorld(wp.getWorldName());
         if (world == null) {
             player.sendMessage(plugin.msg("prefix") + "§cCannot teleport — world §e"
@@ -120,8 +121,10 @@ public class TeleportHelper {
                 String.format(plugin.msgCfg("waypoint-teleported"), wp.getName()));
         plugin.getWaypointManager().setRecallCooldown(player.getUniqueId());
 
-        // Notify party members of this Pinpoint travel
-        plugin.getPartyGuiManager().notifyPartyTravel(player, wp);
+        // Notify party members — skipped for follow teleports to prevent re-notification loops
+        if (!suppressFollowPrompt) {
+            plugin.getPartyGuiManager().notifyPartyTravel(player, wp);
+        }
     }
 
     // Returns null if no safe spot found within radius.

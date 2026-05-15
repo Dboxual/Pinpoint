@@ -159,6 +159,10 @@ public class PartyManager {
         lastTravelOffer.entrySet().removeIf(e -> offerId.equals(e.getValue()));
     }
 
+    public void clearLastTravelOffer(UUID playerUuid) {
+        lastTravelOffer.remove(playerUuid);
+    }
+
     // --- Storage support ---
 
     public void loadParty(Party party) {

@@ -6,8 +6,6 @@ import com.pinpoint.data.Party;
 import com.pinpoint.data.TravelOffer;
 import com.pinpoint.data.Waypoint;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
@@ -183,8 +181,9 @@ public class PartyGuiManager {
     // --- Travel Notification ---
 
     /**
-     * Called after a Pinpoint teleport completes. Notifies all online party members
-     * with a clickable [Follow] / [Stay] message. Offer expires after the configured timeout.
+     * Called after a Pinpoint teleport completes (suppressFollowPrompt=false only).
+     * Opens a Follow/Stay GUI for each online party member and sends a plain-text hint.
+     * Offer expires after the configured timeout.
      */
     public void notifyPartyTravel(Player traveler, Waypoint wp) {
         Party party = plugin.getPartyManager().getPartyOf(traveler.getUniqueId());
@@ -204,28 +203,50 @@ public class PartyGuiManager {
 
             plugin.getPartyManager().setLastTravelOffer(memberUuid, offerId);
 
-            Component msg = Component.text("[Pinpoint] ", NamedTextColor.DARK_AQUA)
-                    .append(Component.text(traveler.getName(), NamedTextColor.AQUA))
-                    .append(Component.text(" is traveling to ", NamedTextColor.YELLOW))
-                    .append(Component.text(wp.getName(), NamedTextColor.AQUA))
-                    .append(Component.text("  ", NamedTextColor.GRAY))
-                    .append(Component.text("[Follow]", NamedTextColor.GREEN)
-                            .decorate(TextDecoration.BOLD)
-                            .clickEvent(ClickEvent.runCommand("/party follow " + offerId))
-                            .hoverEvent(HoverEvent.showText(
-                                    Component.text("Teleport to " + wp.getName(), NamedTextColor.GREEN))))
-                    .append(Component.text("  ", NamedTextColor.DARK_GRAY))
-                    .append(Component.text("[Stay]", NamedTextColor.RED)
-                            .clickEvent(ClickEvent.runCommand("/party stay " + offerId))
-                            .hoverEvent(HoverEvent.showText(
-                                    Component.text("Dismiss this notification", NamedTextColor.RED))));
+            // Open GUI (works on Java and Bedrock/Geyser)
+            openTravelOfferGui(member, offer);
 
-            member.sendMessage(msg);
+            // Plain-text hint — no clickable components needed since the GUI is primary
+            member.sendMessage(Component.text("[Pinpoint] ", NamedTextColor.DARK_AQUA)
+                    .append(Component.text(traveler.getName(), NamedTextColor.AQUA))
+                    .append(Component.text(" traveled to ", NamedTextColor.YELLOW))
+                    .append(Component.text(wp.getName(), NamedTextColor.AQUA))
+                    .append(Component.text("  §7(Shift+Pearl to follow)", NamedTextColor.GRAY)));
         }
 
         int taskId = plugin.getServer().getScheduler().runTaskLater(plugin, () ->
                 plugin.getPartyManager().removeTravelOffer(offerId), timeout * 20L).getTaskId();
         offer.taskId = taskId;
+    }
+
+    /** Opens the Follow / Stay GUI for a party member who received a travel notification. */
+    public void openTravelOfferGui(Player member, TravelOffer offer) {
+        Inventory inv = Bukkit.createInventory(null, 27,
+                Component.text("Travel Offer").color(NamedTextColor.AQUA));
+        Map<Integer, Runnable> handlers = new HashMap<>();
+
+        fillBorder(inv, 3);
+
+        inv.setItem(13, makeItem(Material.ENDER_PEARL,
+                offer.travelerName + " → " + offer.waypointName,
+                List.of(
+                        colorLine("Your party just traveled to " + offer.waypointName, NamedTextColor.GRAY),
+                        colorLine("Follow or stay behind.", NamedTextColor.GRAY)
+                )));
+
+        inv.setItem(11, makeItem(Material.LIME_WOOL, "Follow",
+                List.of(colorLine("Teleport to " + offer.waypointName, NamedTextColor.GREEN))));
+        handlers.put(11, () -> plugin.getPartyCommand().processFollowOffer(member, offer));
+
+        inv.setItem(15, makeItem(Material.RED_WOOL, "Stay",
+                List.of(colorLine("Stay where you are", NamedTextColor.RED))));
+        handlers.put(15, () -> {
+            plugin.getPartyManager().clearLastTravelOffer(member.getUniqueId());
+            plugin.getGuiManager().closeGui(member);
+            member.sendMessage(plugin.msg("prefix") + "§7You chose to stay. Safe travels!");
+        });
+
+        plugin.getGuiManager().openGui(member, inv, handlers);
     }
 
     // --- Item helpers ---

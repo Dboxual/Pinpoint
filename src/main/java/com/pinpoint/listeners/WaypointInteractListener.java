@@ -1,6 +1,7 @@
 package com.pinpoint.listeners;
 
 import com.pinpoint.PinpointPlugin;
+import com.pinpoint.data.TravelOffer;
 import com.pinpoint.data.Waypoint;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -12,6 +13,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.List;
 import java.util.Optional;
 
 public class WaypointInteractListener implements Listener {
@@ -29,7 +31,7 @@ public class WaypointInteractListener implements Listener {
         Player player = event.getPlayer();
         Action action = event.getAction();
 
-        // Right-click on a waypoint block
+        // Right-click on a waypoint block (shift state irrelevant here)
         if (action == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null) {
             Optional<Waypoint> wpOpt = plugin.getWaypointManager()
                     .getWaypointAt(event.getClickedBlock().getLocation());
@@ -49,7 +51,7 @@ public class WaypointInteractListener implements Listener {
             }
         }
 
-        // Right-click air or block with Waypoint Pearl → open hub GUI
+        // Right-click air or block with Waypoint Pearl
         ItemStack item = event.getItem();
         if (item == null || !plugin.getItemManager().isWaypointPearl(item)) return;
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
@@ -61,6 +63,22 @@ public class WaypointInteractListener implements Listener {
             return;
         }
 
+        if (player.isSneaking()) {
+            // Shift+right-click: accept pending teleport invite, or follow party travel offer
+            if (plugin.getWaypointManager().hasPendingInvite(player.getUniqueId())) {
+                plugin.getCommandHandler().processAccept(player);
+                return;
+            }
+            TravelOffer offer = plugin.getPartyManager().getLastTravelOffer(player.getUniqueId());
+            if (offer != null) {
+                plugin.getPartyCommand().processFollowOffer(player, offer);
+                return;
+            }
+            player.sendMessage(plugin.msg("prefix") + "§7No pending invite or travel offer.");
+            return;
+        }
+
+        // Normal right-click: open hub GUI
         plugin.getGuiManager().openHubGui(player, null);
     }
 
@@ -84,8 +102,13 @@ public class WaypointInteractListener implements Listener {
             // Shift+right-click player → party link request
             plugin.getPartyGuiManager().sendLinkRequest(player, target);
         } else {
-            // Regular right-click player → open hub GUI (same as right-clicking air)
-            plugin.getGuiManager().openHubGui(player, null);
+            // Regular right-click player → invite them to a waypoint
+            List<Waypoint> owned = plugin.getWaypointManager().getOwnedWaypoints(player.getUniqueId());
+            if (owned.isEmpty()) {
+                player.sendMessage(plugin.msg("prefix") + "§cYou don't own any waypoints to invite to.");
+                return;
+            }
+            plugin.getGuiManager().openInviteSelectGui(player, target, owned);
         }
     }
 }

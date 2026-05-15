@@ -194,7 +194,6 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
     private void handleFollow(Player player, String[] args) {
         TravelOffer offer;
         if (args.length >= 2) {
-            // /party follow <offerId>  (from clickable chat button)
             try {
                 UUID offerId = UUID.fromString(args[1]);
                 offer = plugin.getPartyManager().getTravelOffer(offerId);
@@ -203,7 +202,7 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
                 return;
             }
         } else {
-            // /party follow  (no-arg, Bedrock-friendly — uses last received offer)
+            // No-arg: Bedrock-friendly — uses last received offer
             offer = plugin.getPartyManager().getLastTravelOffer(player.getUniqueId());
         }
 
@@ -211,24 +210,46 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(plugin.msg("prefix") + "§cNo active travel offer to follow.");
             return;
         }
+        processFollowOffer(player, offer);
+    }
+
+    /**
+     * Validates and executes a party follow. Called from the GUI Follow button,
+     * /party follow, and shift+right-click pearl.
+     */
+    public void processFollowOffer(Player player, TravelOffer offer) {
+        // Re-validate offer is still active
+        if (plugin.getPartyManager().getTravelOffer(offer.id) == null) {
+            player.sendMessage(plugin.msg("prefix") + "§cThat travel offer has expired.");
+            plugin.getGuiManager().closeGui(player);
+            return;
+        }
+
         com.pinpoint.data.Party playerParty = plugin.getPartyManager().getPartyOf(player.getUniqueId());
         if (playerParty == null || !playerParty.hasMember(offer.travelerUuid)) {
             player.sendMessage(plugin.msg("prefix") + "§cThat travel offer is no longer valid.");
+            plugin.getGuiManager().closeGui(player);
             return;
         }
 
         Optional<Waypoint> wpOpt = plugin.getWaypointManager().getWaypoint(offer.waypointUuid);
         if (wpOpt.isEmpty()) {
             player.sendMessage(plugin.msg("prefix") + "§cThat waypoint no longer exists.");
+            plugin.getGuiManager().closeGui(player);
             return;
         }
 
+        plugin.getGuiManager().closeGui(player);
+        // Clear so the same offer can't be followed twice
+        plugin.getPartyManager().clearLastTravelOffer(player.getUniqueId());
         plugin.getTeleportHelper().partyFollow(player, wpOpt.get(), offer.travelerName);
     }
 
     // --- Stay (dismiss travel offer) ---
 
     private void handleStay(Player player, String[] args) {
+        plugin.getPartyManager().clearLastTravelOffer(player.getUniqueId());
+        plugin.getGuiManager().closeGui(player);
         player.sendMessage(plugin.msg("prefix") + "§7You chose to stay. Safe travels to your party!");
     }
 

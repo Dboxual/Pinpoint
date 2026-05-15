@@ -39,7 +39,11 @@ public class TeleportCancelListener implements Listener {
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        cancelTeleport(event.getPlayer(), null);
+        Player player = event.getPlayer();
+        cancelTeleport(player, null);
+        // Clear pending waypoint teleport invite and party travel offer
+        plugin.getWaypointManager().removeInvite(player.getUniqueId());
+        plugin.getPartyManager().clearLastTravelOffer(player.getUniqueId());
     }
 
     private void cancelTeleport(Player player, String message) {
