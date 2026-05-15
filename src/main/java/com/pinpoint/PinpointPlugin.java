@@ -9,6 +9,7 @@ import com.pinpoint.data.WaypointStorage;
 import com.pinpoint.economy.EconomyManager;
 import com.pinpoint.gui.GuiManager;
 import com.pinpoint.gui.PartyGuiManager;
+import com.pinpoint.hologram.HologramManager;
 import com.pinpoint.item.ItemManager;
 import com.pinpoint.listeners.BlockBreakListener;
 import com.pinpoint.listeners.BlockPlaceListener;
@@ -29,6 +30,7 @@ public class PinpointPlugin extends JavaPlugin {
     private EconomyManager economyManager;
     private GuiManager guiManager;
     private PartyGuiManager partyGuiManager;
+    private HologramManager hologramManager;
     private TeleportHelper teleportHelper;
     private WaypointCommand commandHandler;
     private PartyCommand partyCommand;
@@ -70,6 +72,7 @@ public class PinpointPlugin extends JavaPlugin {
         teleportHelper = new TeleportHelper(this);
         guiManager = new GuiManager(this);
         partyGuiManager = new PartyGuiManager(this);
+        hologramManager = new HologramManager(this);
 
         commandHandler = new WaypointCommand(this);
         getCommand("waypoint").setExecutor(commandHandler);
@@ -82,6 +85,7 @@ public class PinpointPlugin extends JavaPlugin {
         chatInputListener = new ChatInputListener(this);
 
         getServer().getPluginManager().registerEvents(guiManager, this);
+        getServer().getPluginManager().registerEvents(hologramManager, this);
         getServer().getPluginManager().registerEvents(new WaypointInteractListener(this), this);
         getServer().getPluginManager().registerEvents(new BlockPlaceListener(this), this);
         getServer().getPluginManager().registerEvents(new BlockBreakListener(this), this);
@@ -89,11 +93,14 @@ public class PinpointPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(chatInputListener, this);
         getServer().getPluginManager().registerEvents(new PartyListener(this), this);
 
+        hologramManager.spawnAll();
+
         getLogger().info("Pinpoint enabled with " + waypointManager.getAllWaypoints().size() + " waypoints loaded.");
     }
 
     @Override
     public void onDisable() {
+        if (hologramManager != null) hologramManager.removeAll();
         if (partyStorage != null && partyManager != null) {
             partyStorage.saveAll(partyManager.getAllParties());
         }
@@ -102,6 +109,7 @@ public class PinpointPlugin extends JavaPlugin {
 
     public void reload() {
         reloadConfig();
+        if (hologramManager != null) hologramManager.removeAll();
         waypointStorage.load();
         waypointManager.loadAll();
         partyStorage.load();
@@ -110,6 +118,7 @@ public class PinpointPlugin extends JavaPlugin {
             partyManager.loadParty(party);
         }
         economyManager.setup();
+        if (hologramManager != null) hologramManager.spawnAll();
         getLogger().info("Pinpoint reloaded. Waypoints: " + waypointManager.getAllWaypoints().size()
                 + ", Parties: " + partyManager.getAllParties().size());
     }
@@ -122,6 +131,7 @@ public class PinpointPlugin extends JavaPlugin {
         return getConfig().getString("messages." + key, "").replace("&", "§");
     }
 
+    public HologramManager getHologramManager()    { return hologramManager; }
     public WaypointManager getWaypointManager()   { return waypointManager; }
     public WaypointStorage getWaypointStorage()    { return waypointStorage; }
     public PartyManager getPartyManager()          { return partyManager; }

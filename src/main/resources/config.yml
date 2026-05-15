@@ -22,6 +22,16 @@ settings:
   # Seconds party members have to click [Follow] after a Pinpoint travel notification.
   party-travel-offer-timeout: 30
 
+holograms:
+  # Whether to display floating info above each placed waypoint block.
+  enabled: true
+  # Height above the block's Y coordinate where the bottom hologram line appears.
+  height: 1.8
+  # Include the owner's name in the hologram.
+  show-owner: true
+  # Include the fee (or "Free") in the hologram. Only shown when Vault is enabled.
+  show-fee: true
+
 messages:
   prefix: "&8[&bWaypoints&8] &r"
   no-permission: "&cYou don't have permission to do that."

@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.2.2 — 2026-05-14
+### Added
+- **Waypoint holograms** — each placed Lodestone block now displays floating text above it showing the waypoint name, owner, public/private status, and fee.
+  - Implemented as stacked invisible marker armor stands (no hitbox, no gravity, protected from interaction).
+  - Hologram spawns/updates on: waypoint creation, rename, visibility toggle, fee change, plugin reload/startup.
+  - Hologram is removed when: waypoint is deleted (GUI or block break), plugin disables.
+  - Chunks that unload and reload have their holograms automatically restored via `ChunkLoadEvent`.
+- **New config section `holograms:`**
+  - `enabled: true` — toggle all holograms on/off.
+  - `height: 1.8` — vertical offset above the block's Y coordinate for the bottom line.
+  - `show-owner: true` — include the owner name line.
+  - `show-fee: true` — include the fee/free line (only shown when Vault is enabled).
+
+---
+
 ## v1.2.1 — 2026-05-14
 ### Changed
 - **Split teleport delay into two independent config keys:**

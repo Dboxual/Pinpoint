@@ -184,6 +184,7 @@ public class GuiManager implements Listener {
                 }
                 wp.setPublic(!wp.isPublic());
                 plugin.getWaypointManager().saveWaypoint(wp);
+                plugin.getHologramManager().updateHologram(wp);
                 openManageGui(player, wp, fromBlock);
             });
 
@@ -271,6 +272,7 @@ public class GuiManager implements Listener {
                 List.of(colorLine("Permanently deletes this waypoint", NamedTextColor.RED))));
         handlers.put(15, () -> {
             Location blockLoc = wp.getLocation();
+            plugin.getHologramManager().removeHologram(wp.getId());
             plugin.getWaypointManager().deleteWaypoint(wp.getId());
             if (blockLoc != null && blockLoc.getBlock().getType() == Material.LODESTONE) {
                 blockLoc.getBlock().setType(Material.AIR);

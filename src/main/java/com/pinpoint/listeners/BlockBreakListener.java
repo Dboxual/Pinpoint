@@ -33,6 +33,7 @@ public class BlockBreakListener implements Listener {
         }
 
         // Owner or admin — remove waypoint from storage; block drops normally
+        plugin.getHologramManager().removeHologram(wp.getId());
         plugin.getWaypointManager().deleteWaypoint(wp.getId());
         player.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("waypoint-deleted"), wp.getName()));

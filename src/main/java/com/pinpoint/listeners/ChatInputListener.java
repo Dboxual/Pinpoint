@@ -66,6 +66,7 @@ public class ChatInputListener implements Listener {
                     }
                     wp.setName(input);
                     plugin.getWaypointManager().saveWaypoint(wp);
+                    plugin.getHologramManager().updateHologram(wp);
 
                     player.sendMessage(plugin.msg("prefix") +
                             String.format(plugin.msgCfg("waypoint-renamed"), input));
@@ -112,6 +113,7 @@ public class ChatInputListener implements Listener {
                 }
 
                 Waypoint wp = plugin.getWaypointManager().createWaypoint(input, player, loc);
+                plugin.getHologramManager().spawnHologram(wp);
 
                 player.sendMessage(plugin.msg("prefix") +
                         String.format(plugin.msgCfg("waypoint-named"), wp.getName()));
@@ -152,6 +154,7 @@ public class ChatInputListener implements Listener {
                     }
                     wp.setFee(fee);
                     plugin.getWaypointManager().saveWaypoint(wp);
+                    plugin.getHologramManager().updateHologram(wp);
                     player.sendMessage(plugin.msg("prefix") + "§aFee for §b" + wp.getName() + "§a set to §e"
                             + plugin.getEconomyManager().format(fee) + "§a.");
                 }, () -> player.sendMessage(plugin.msg("prefix") + "§cWaypoint no longer exists."));
