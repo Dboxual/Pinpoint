@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.2.1 — 2026-05-14
+### Changed
+- **Split teleport delay into two independent config keys:**
+  - `waypoint-block-teleport-delay-seconds: 0` — right-clicking a placed waypoint block teleports near-instantly (safe-spot and fee checks still run).
+  - `waypoint-pearl-teleport-delay-seconds: 10` — Waypoint Pearl teleports keep the full countdown. Players must stand still; movement, damage, or logout cancels it. Item switching does NOT cancel it.
+  - The old `teleport-delay-seconds` key is removed; update `config.yml` accordingly.
+- **New message `teleport-block`** — shown on instant block teleport ("Teleporting...").
+- **Updated `teleport-countdown` message** — now reads "Pearl teleporting in Xs... don't move." to make the pearl context explicit.
+- `fromBlock` flag threaded through all `GuiManager` GUI methods so the correct delay is applied regardless of how deeply a player navigates the GUI chain before clicking Teleport.
+
+---
+
 ## v1.2.0 — 2026-05-14
 ### Fixed
 - **Infinite follow loop** — party follow teleports now pass `suppressFollowPrompt=true` to `doTeleport()`, so when player B follows player A, A is never re-notified. The follow chain stops at one hop.

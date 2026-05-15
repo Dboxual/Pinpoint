@@ -94,7 +94,13 @@ public class GuiManager implements Listener {
 
     // --- GUI builders ---
 
-    public void openHubGui(Player player, UUID focusedWaypointId) {
+    /**
+     * Opens the waypoint hub.
+     * fromBlock=true when triggered by right-clicking a placed waypoint block;
+     * fromBlock=false when triggered by a Waypoint Pearl or command.
+     * This flag is threaded through to the teleport button so the right delay is used.
+     */
+    public void openHubGui(Player player, UUID focusedWaypointId, boolean fromBlock) {
         List<Waypoint> accessible = plugin.getWaypointManager()
                 .getAccessibleWaypoints(player.getUniqueId());
         Set<String> dupes = duplicateNames(accessible);
@@ -123,7 +129,7 @@ public class GuiManager implements Listener {
 
             inv.setItem(slot, makeItem(mat, label(wp, dupes), lore));
             final Waypoint finalWp = wp;
-            handlers.put(slot, () -> handleWaypointClick(player, finalWp));
+            handlers.put(slot, () -> handleWaypointClick(player, finalWp, fromBlock));
             slot++;
             if ((slot % 9) == 8) slot += 2;
         }
@@ -136,7 +142,7 @@ public class GuiManager implements Listener {
                         List.of(colorLine("Click to manage", NamedTextColor.YELLOW)));
                 int manageSlot = rows * 9 - 5;
                 inv.setItem(manageSlot, thisWp);
-                handlers.put(manageSlot, () -> openManageGui(player, focused));
+                handlers.put(manageSlot, () -> openManageGui(player, focused, fromBlock));
             });
         }
 
@@ -147,7 +153,7 @@ public class GuiManager implements Listener {
         openGui(player, inv, handlers);
     }
 
-    public void openManageGui(Player player, Waypoint wp) {
+    public void openManageGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
         boolean isOwner = wp.isOwner(player.getUniqueId());
         Inventory inv = Bukkit.createInventory(null, 27,
@@ -157,7 +163,10 @@ public class GuiManager implements Listener {
 
         inv.setItem(10, makeItem(Material.ENDER_PEARL, "Teleport Here",
                 List.of(colorLine("Click to teleport", NamedTextColor.YELLOW))));
-        handlers.put(10, () -> plugin.getTeleportHelper().teleport(player, wp));
+        handlers.put(10, () -> {
+            if (fromBlock) plugin.getTeleportHelper().teleportFromBlock(player, wp);
+            else plugin.getTeleportHelper().teleport(player, wp);
+        });
 
         if (isOwner) {
             // --- Visibility toggle (Emerald = public, Redstone = private) ---
@@ -175,7 +184,7 @@ public class GuiManager implements Listener {
                 }
                 wp.setPublic(!wp.isPublic());
                 plugin.getWaypointManager().saveWaypoint(wp);
-                openManageGui(player, wp);
+                openManageGui(player, wp, fromBlock);
             });
 
             inv.setItem(12, makeItem(Material.GOLD_NUGGET, "Set Fee",
@@ -198,7 +207,7 @@ public class GuiManager implements Listener {
                     if (!wp.isOwner(player.getUniqueId())) {
                         player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
                     }
-                    openInviteGui(player, wp);
+                    openInviteGui(player, wp, fromBlock);
                 });
             }
 
@@ -233,17 +242,17 @@ public class GuiManager implements Listener {
                 if (!wp.isOwner(player.getUniqueId())) {
                     player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
                 }
-                openConfirmDeleteGui(player, wp);
+                openConfirmDeleteGui(player, wp, fromBlock);
             });
         }
 
         inv.setItem(22, makeItem(Material.ARROW, "Back", List.of()));
-        handlers.put(22, () -> openHubGui(player, wp.getId()));
+        handlers.put(22, () -> openHubGui(player, wp.getId(), fromBlock));
 
         openGui(player, inv, handlers);
     }
 
-    public void openConfirmDeleteGui(Player player, Waypoint wp) {
+    public void openConfirmDeleteGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
         Inventory inv = Bukkit.createInventory(null, 27,
                 Component.text("Delete: " + wpLabel + "?").color(NamedTextColor.RED));
@@ -256,7 +265,7 @@ public class GuiManager implements Listener {
 
         inv.setItem(11, makeItem(Material.LIME_WOOL, "Cancel",
                 List.of(colorLine("Go back, keep waypoint", NamedTextColor.GREEN))));
-        handlers.put(11, () -> openManageGui(player, wp));
+        handlers.put(11, () -> openManageGui(player, wp, fromBlock));
 
         inv.setItem(15, makeItem(Material.RED_WOOL, "Confirm Delete",
                 List.of(colorLine("Permanently deletes this waypoint", NamedTextColor.RED))));
@@ -274,7 +283,7 @@ public class GuiManager implements Listener {
         openGui(player, inv, handlers);
     }
 
-    public void openUseGui(Player player, Waypoint wp) {
+    public void openUseGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
         Inventory inv = Bukkit.createInventory(null, 27,
                 Component.text("Use: " + wpLabel).color(NamedTextColor.AQUA));
@@ -287,16 +296,19 @@ public class GuiManager implements Listener {
 
         inv.setItem(11, makeItem(Material.ENDER_PEARL, "Teleport Here",
                 List.of(colorLine("Click to teleport", NamedTextColor.YELLOW))));
-        handlers.put(11, () -> plugin.getTeleportHelper().teleport(player, wp));
+        handlers.put(11, () -> {
+            if (fromBlock) plugin.getTeleportHelper().teleportFromBlock(player, wp);
+            else plugin.getTeleportHelper().teleport(player, wp);
+        });
 
         inv.setItem(15, makeItem(Material.ARROW, "Back",
                 List.of(colorLine("Back to hub", NamedTextColor.GRAY))));
-        handlers.put(15, () -> openHubGui(player, null));
+        handlers.put(15, () -> openHubGui(player, null, fromBlock));
 
         openGui(player, inv, handlers);
     }
 
-    public void openInviteGui(Player player, Waypoint wp) {
+    public void openInviteGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
         Set<UUID> invited = wp.getInvitedPlayers();
         int rows = Math.min(6, Math.max(3, (int) Math.ceil((invited.size() + 9) / 9.0) + 1));
@@ -316,7 +328,7 @@ public class GuiManager implements Listener {
             handlers.put(slot, () -> {
                 wp.removeInvite(finalUuid);
                 plugin.getWaypointManager().saveWaypoint(wp);
-                openInviteGui(player, wp);
+                openInviteGui(player, wp, fromBlock);
             });
             slot++;
             if ((slot % 9) == 8) slot += 2;
@@ -324,7 +336,7 @@ public class GuiManager implements Listener {
 
         int backSlot = rows * 9 - 5;
         inv.setItem(backSlot, makeItem(Material.ARROW, "Back", List.of()));
-        handlers.put(backSlot, () -> openManageGui(player, wp));
+        handlers.put(backSlot, () -> openManageGui(player, wp, fromBlock));
 
         openGui(player, inv, handlers);
     }
@@ -413,11 +425,11 @@ public class GuiManager implements Listener {
 
     // --- Internal ---
 
-    private void handleWaypointClick(Player player, Waypoint wp) {
+    private void handleWaypointClick(Player player, Waypoint wp, boolean fromBlock) {
         if (wp.isOwner(player.getUniqueId())) {
-            openManageGui(player, wp);
+            openManageGui(player, wp, fromBlock);
         } else {
-            openUseGui(player, wp);
+            openUseGui(player, wp, fromBlock);
         }
     }
 

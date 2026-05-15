@@ -35,7 +35,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
                 return true;
             }
-            plugin.getGuiManager().openHubGui(player, null);
+            plugin.getGuiManager().openHubGui(player, null, false);
             return true;
         }
 

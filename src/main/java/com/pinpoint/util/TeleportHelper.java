@@ -17,12 +17,27 @@ public class TeleportHelper {
     }
 
     /**
-     * Initiates a delayed teleport with a countdown. All players (including owners)
-     * see the countdown and are subject to cancellation on movement/damage/logout.
-     * After the delay, the actual teleport fires and the reuse cooldown is set.
+     * Pearl-path teleport: 10-second countdown by default (waypoint-pearl-teleport-delay-seconds).
+     * Cancelled by movement, damage, or logout. Item switching does NOT cancel it.
      */
     public void teleport(Player player, Waypoint wp) {
-        // Reuse cooldown — applies to all players
+        startTeleport(player, wp,
+                plugin.getConfig().getInt("settings.waypoint-pearl-teleport-delay-seconds", 10),
+                false);
+    }
+
+    /**
+     * Block-path teleport: near-instant by default (waypoint-block-teleport-delay-seconds = 0).
+     * Still runs fee and safe-spot checks. Cooldown still applies.
+     */
+    public void teleportFromBlock(Player player, Waypoint wp) {
+        startTeleport(player, wp,
+                plugin.getConfig().getInt("settings.waypoint-block-teleport-delay-seconds", 0),
+                true);
+    }
+
+    private void startTeleport(Player player, Waypoint wp, int delaySeconds, boolean fromBlock) {
+        // Reuse cooldown — applies to all players and both teleport paths
         if (plugin.getWaypointManager().isOnRecallCooldown(player.getUniqueId())) {
             long secs = plugin.getWaypointManager().getRemainingCooldownSeconds(player.getUniqueId());
             player.sendMessage(plugin.msg("prefix") +
@@ -36,9 +51,8 @@ public class TeleportHelper {
             return;
         }
 
-        int delaySeconds = plugin.getConfig().getInt("settings.teleport-delay-seconds", 10);
-
         if (delaySeconds <= 0) {
+            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("teleport-block"));
             doTeleport(player, wp, false);
             return;
         }

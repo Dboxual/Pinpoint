@@ -3,8 +3,10 @@ settings:
   default-fee: 0
   # Radius (in blocks) to search for a safe landing spot near the waypoint.
   safe-teleport-radius: 5
-  # Seconds to count down before teleporting (all players). Player must stand still.
-  teleport-delay-seconds: 10
+  # Block right-click teleport delay (seconds). 0 = near-instant. Player still needs to pass fee/safe-spot checks.
+  waypoint-block-teleport-delay-seconds: 0
+  # Pearl right-click teleport delay (seconds). Player must stand still for this long before teleporting.
+  waypoint-pearl-teleport-delay-seconds: 10
   # Seconds a player must wait between teleports after a successful one (all players).
   teleport-cooldown-seconds: 3
   # Maximum number of waypoints a single player may own (0 = unlimited).
@@ -47,6 +49,7 @@ messages:
   waypoint-renamed: "&aWaypoint renamed to &b%s&a."
   rename-prompt: "&eType a new name for &b%s&e (or &ccancel&e):"
   orb-invalid: "&cThis Recall Orb is no longer valid."
-  teleport-countdown: "&eTeleporting in &b%ds&e... don't move."
+  teleport-block: "&aTeleporting..."
+  teleport-countdown: "&ePearl teleporting in &b%ds&e... don't move."
   teleport-cancelled-moved: "&cTeleport cancelled — you moved."
   teleport-cancelled-damaged: "&cTeleport cancelled — you took damage."

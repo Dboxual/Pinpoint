@@ -46,7 +46,7 @@ public class WaypointInteractListener implements Listener {
                     player.sendMessage(plugin.msg("prefix") + "§cThis waypoint is private.");
                     return;
                 }
-                plugin.getGuiManager().openHubGui(player, wp.getId());
+                plugin.getGuiManager().openHubGui(player, wp.getId(), true);
                 return;
             }
         }
@@ -78,8 +78,8 @@ public class WaypointInteractListener implements Listener {
             return;
         }
 
-        // Normal right-click: open hub GUI
-        plugin.getGuiManager().openHubGui(player, null);
+        // Normal right-click: open hub GUI (pearl path — full countdown applies)
+        plugin.getGuiManager().openHubGui(player, null, false);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
