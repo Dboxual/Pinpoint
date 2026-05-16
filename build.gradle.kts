@@ -3,8 +3,8 @@ plugins {
 }
 
 group = "com.pinpoint"
-version = "1.2.7"
-description = "WaypointSystem"
+version = "1.2.8"
+description = "Pinpoint"
 
 java {
     toolchain {

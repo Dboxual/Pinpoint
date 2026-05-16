@@ -95,7 +95,7 @@ public class TeleportHelper {
             // Re-validate waypoint in case it was deleted during the countdown
             plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
                     current -> doTeleport(player, current, false),
-                    () -> player.sendMessage(plugin.msg("prefix") + "§cWaypoint no longer exists.")
+                    () -> player.sendMessage(plugin.msg("prefix") + "§cPinpoint no longer exists.")
             );
         }, delaySeconds * 20L).getTaskId();
 
@@ -117,7 +117,7 @@ public class TeleportHelper {
                 plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
                         current -> doTeleport(player, current, true),
                         () -> player.sendMessage(plugin.msg("prefix")
-                                + "§cThe waypoint you were following no longer exists.")
+                                + "§cThe Pinpoint you were following no longer exists.")
                 ), 20L);
     }
 
@@ -133,7 +133,7 @@ public class TeleportHelper {
 
         Location loc = wp.getLocation();
         if (loc == null) {
-            player.sendMessage(plugin.msg("prefix") + "§cCannot teleport — waypoint location is invalid.");
+            player.sendMessage(plugin.msg("prefix") + "§cCannot teleport — Pinpoint location is invalid.");
             return;
         }
 

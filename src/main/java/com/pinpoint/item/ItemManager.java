@@ -55,9 +55,9 @@ public class ItemManager {
     public ItemStack createWaypointBlockItem() {
         ItemStack item = new ItemStack(Material.LODESTONE);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(text("Waypoint", NamedTextColor.AQUA));
+        meta.displayName(text("Pinpoint", NamedTextColor.AQUA));
         meta.lore(List.of(
-                text("Place to create a new waypoint.", NamedTextColor.GRAY),
+                text("Place to create a new Pinpoint.", NamedTextColor.GRAY),
                 text("Right-click the placed block to manage.", NamedTextColor.DARK_GRAY)
         ));
         meta.getPersistentDataContainer().set(KEY_WAYPOINT_BLOCK, PersistentDataType.BYTE, (byte) 1);
@@ -75,9 +75,9 @@ public class ItemManager {
     public ItemStack createWaypointPearl() {
         ItemStack item = new ItemStack(Material.ENDER_PEARL);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(text("Waypoint Pearl", NamedTextColor.LIGHT_PURPLE));
+        meta.displayName(text("Pinpoint Pearl", NamedTextColor.LIGHT_PURPLE));
         meta.lore(List.of(
-                text("Right-click: open accessible waypoints", NamedTextColor.GRAY),
+                text("Right-click: open accessible Pinpoints", NamedTextColor.GRAY),
                 text("Right-click player: invite to a waypoint", NamedTextColor.DARK_GRAY),
                 text("Shift+right-click player: send link request", NamedTextColor.DARK_GRAY)
         ));

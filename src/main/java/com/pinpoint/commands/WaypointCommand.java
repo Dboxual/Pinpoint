@@ -28,7 +28,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0 || args[0].equalsIgnoreCase("menu")) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage("Only players can use /waypoint.");
+                sender.sendMessage("Only players can use this command.");
                 return true;
             }
             if (!player.hasPermission("waypoint.use")) {
@@ -66,11 +66,11 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         waypoints.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
 
         if (waypoints.isEmpty()) {
-            sender.sendMessage(plugin.msg("prefix") + "§7You have no accessible waypoints.");
+            sender.sendMessage(plugin.msg("prefix") + "§7You have no accessible Pinpoints.");
             return;
         }
 
-        sender.sendMessage(plugin.msg("prefix") + "§eAccessible waypoints §7(" + waypoints.size() + ")§e:");
+        sender.sendMessage(plugin.msg("prefix") + "§eAccessible Pinpoints §7(" + waypoints.size() + ")§e:");
         for (Waypoint wp : waypoints) {
             String tag;
             if (playerUuid != null && wp.isOwner(playerUuid)) {
@@ -132,20 +132,20 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                 item.setAmount(Math.min(amount, 64));
                 target.getInventory().addItem(item);
                 sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
-                        + "x §bWaypoint Block§a to §b" + target.getName() + "§a.");
+                        + "x §bPinpoint Block§a to §b" + target.getName() + "§a.");
                 if (!sender.equals(target)) {
                     target.sendMessage(plugin.msg("prefix") + "§aYou received §e" + amount
-                            + "x §bWaypoint Block§a.");
+                            + "x §bPinpoint Block§a.");
                 }
             }
             case "pearl" -> {
                 int amount = parseAmount(args, 3, 1);
                 plugin.getItemManager().giveWaypointPearls(target, amount);
                 sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
-                        + "x §dWaypoint Pearl§a to §b" + target.getName() + "§a.");
+                        + "x §dPinpoint Pearl§a to §b" + target.getName() + "§a.");
                 if (!sender.equals(target)) {
                     target.sendMessage(plugin.msg("prefix") + "§aYou received §e" + amount
-                            + "x §dWaypoint Pearl§a.");
+                            + "x §dPinpoint Pearl§a.");
                 }
             }
             default -> sender.sendMessage(plugin.msg("prefix")
@@ -167,7 +167,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
 
         Optional<Waypoint> wpOpt = plugin.getWaypointManager().getWaypoint(invite.waypointId);
         if (wpOpt.isEmpty()) {
-            player.sendMessage(plugin.msg("prefix") + "§cThat waypoint no longer exists.");
+            player.sendMessage(plugin.msg("prefix") + "§cThat Pinpoint no longer exists.");
             plugin.getWaypointManager().removeInvite(uuid);
             return;
         }
@@ -224,9 +224,9 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
     // --- Helpers ---
 
     private void sendUsage(CommandSender sender) {
-        sender.sendMessage(plugin.msg("prefix") + "§eWaypoint commands:");
-        sender.sendMessage("  §b/wp§e or §b/wp menu §7- Open waypoint hub");
-        sender.sendMessage("  §b/wp list            §7- List accessible waypoints");
+        sender.sendMessage(plugin.msg("prefix") + "§ePinpoint commands:");
+        sender.sendMessage("  §b/wp§e or §b/wp menu §7- Open Pinpoint hub");
+        sender.sendMessage("  §b/wp list            §7- List accessible Pinpoints");
         sender.sendMessage("  §b/wp accept§e/§bdeny  §7- Respond to a teleport invite");
         if (sender.hasPermission("waypoint.reload"))
             sender.sendMessage("  §b/wp reload          §7- Reload config and data");

@@ -35,6 +35,9 @@ public class GuiManager implements Listener {
     private final PinpointPlugin plugin;
     private final Map<UUID, Map<Integer, Runnable>> openGuis = new HashMap<>();
     private final Map<UUID, Inventory> playerInventories = new HashMap<>();
+    private final Map<UUID, Integer>   hubPageMap        = new HashMap<>();
+
+    private static final int HUB_PAGE_SIZE = 28; // 4 content rows × 7 columns per page
 
     public GuiManager(PinpointPlugin plugin) {
         this.plugin = plugin;
@@ -76,6 +79,7 @@ public class GuiManager implements Listener {
     }
 
     public void closeGui(Player player) {
+        hubPageMap.remove(player.getUniqueId());
         openGuis.remove(player.getUniqueId());
         playerInventories.remove(player.getUniqueId());
         player.closeInventory();
@@ -102,28 +106,48 @@ public class GuiManager implements Listener {
 
     // --- GUI builders ---
 
-    /**
-     * Opens the waypoint hub.
-     * fromBlock=true when triggered by right-clicking a placed waypoint block;
-     * fromBlock=false when triggered by a Waypoint Pearl or command.
-     * This flag is threaded through to the teleport button so the right delay is used.
-     */
     public void openHubGui(Player player, UUID focusedWaypointId, boolean fromBlock) {
+        hubPageMap.putIfAbsent(player.getUniqueId(), 0);
+        renderHubGui(player, focusedWaypointId, fromBlock, hubPageMap.get(player.getUniqueId()));
+    }
+
+    private void renderHubGui(Player player, UUID focusedWaypointId, boolean fromBlock, int page) {
         List<Waypoint> accessible = plugin.getWaypointManager()
                 .getAccessibleWaypoints(player.getUniqueId());
         Set<String> dupes = duplicateNames(accessible);
 
-        int rows = Math.max(3, Math.min(6, (int) Math.ceil((accessible.size() + 9) / 9.0) + 1));
-        Inventory inv = Bukkit.createInventory(null, rows * 9,
-                Component.text("Waypoint Hub").color(NamedTextColor.AQUA));
+        int totalPages = Math.max(1, (int) Math.ceil((double) accessible.size() / HUB_PAGE_SIZE));
+        page = Math.max(0, Math.min(page, totalPages - 1));
+        hubPageMap.put(player.getUniqueId(), page);
+
+        Inventory inv = Bukkit.createInventory(null, 54,
+                Component.text("Pinpoint Hub").color(NamedTextColor.AQUA));
         Map<Integer, Runnable> handlers = new HashMap<>();
 
-        fillBorder(inv, rows);
+        // Top row and side borders for rows 0-4; bottom row filled separately
+        ItemStack glass = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ", List.of());
+        for (int i = 0; i < 9; i++) inv.setItem(i, glass);
+        for (int row = 1; row <= 4; row++) {
+            inv.setItem(row * 9, glass);
+            inv.setItem(row * 9 + 8, glass);
+        }
+        for (int i = 45; i < 54; i++) inv.setItem(i, glass);
 
-        int slot = 10;
-        for (Waypoint wp : accessible) {
-            if (slot >= rows * 9 - 9) break;
-            Material mat = wp.getIconMaterial();
+        // Content slots: rows 1-4, columns 1-7 (28 per page)
+        int[] contentSlots = new int[HUB_PAGE_SIZE];
+        int idx = 0;
+        for (int row = 1; row <= 4; row++) {
+            for (int col = 1; col <= 7; col++) {
+                contentSlots[idx++] = row * 9 + col;
+            }
+        }
+
+        int start = page * HUB_PAGE_SIZE;
+        for (int i = 0; i < HUB_PAGE_SIZE; i++) {
+            int wpIdx = start + i;
+            if (wpIdx >= accessible.size()) break;
+            Waypoint wp = accessible.get(wpIdx);
+            int slot = contentSlots[i];
 
             List<Component> lore = new ArrayList<>();
             lore.add(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY));
@@ -134,28 +158,38 @@ public class GuiManager implements Listener {
                     : colorLine("Free", NamedTextColor.GREEN));
             lore.add(colorLine("Click to open", NamedTextColor.YELLOW));
 
-            inv.setItem(slot, makeItem(mat, label(wp, dupes), lore));
+            inv.setItem(slot, makeItem(wp.getIconMaterial(), label(wp, dupes), lore));
             final Waypoint finalWp = wp;
             handlers.put(slot, () -> handleWaypointClick(player, finalWp, fromBlock));
-            slot++;
-            if ((slot % 9) == 8) slot += 2;
         }
+
+        // Bottom row navigation
+        final int currentPage = page;
+        if (page > 0) {
+            inv.setItem(45, makeItem(Material.RED_STAINED_GLASS_PANE, "Previous Page",
+                    List.of(colorLine("Go to page " + page, NamedTextColor.GRAY))));
+            handlers.put(45, () -> renderHubGui(player, focusedWaypointId, fromBlock, currentPage - 1));
+        }
+
+        inv.setItem(47, makeItem(Material.PAPER, "Page " + (page + 1) + " / " + totalPages, List.of()));
 
         if (focusedWaypointId != null) {
             plugin.getWaypointManager().getWaypoint(focusedWaypointId).ifPresent(focused -> {
                 String focusedLabel = label(focused, dupes);
-                ItemStack thisWp = makeItem(Material.COMPASS,
-                        "This Waypoint: " + focusedLabel,
-                        List.of(colorLine("Click to manage", NamedTextColor.YELLOW)));
-                int manageSlot = rows * 9 - 5;
-                inv.setItem(manageSlot, thisWp);
-                handlers.put(manageSlot, () -> openManageGui(player, focused, fromBlock));
+                inv.setItem(49, makeItem(Material.COMPASS, "This Pinpoint: " + focusedLabel,
+                        List.of(colorLine("Click to manage", NamedTextColor.YELLOW))));
+                handlers.put(49, () -> openManageGui(player, focused, fromBlock));
             });
         }
 
-        int closeSlot = rows * 9 - 1;
-        inv.setItem(closeSlot, makeItem(Material.BARRIER, "Close", List.of()));
-        handlers.put(closeSlot, () -> closeGui(player));
+        inv.setItem(51, makeItem(Material.BARRIER, "Close", List.of()));
+        handlers.put(51, () -> closeGui(player));
+
+        if (page < totalPages - 1) {
+            inv.setItem(53, makeItem(Material.GREEN_STAINED_GLASS_PANE, "Next Page",
+                    List.of(colorLine("Go to page " + (page + 2), NamedTextColor.GRAY))));
+            handlers.put(53, () -> renderHubGui(player, focusedWaypointId, fromBlock, currentPage + 1));
+        }
 
         openGui(player, inv, handlers);
     }
@@ -181,7 +215,7 @@ public class GuiManager implements Listener {
             String pubLabel = wp.isPublic() ? "Visibility: PUBLIC" : "Visibility: PRIVATE";
             List<Component> pubLore = new ArrayList<>();
             pubLore.add(wp.isPublic()
-                    ? colorLine("Anyone can visit this waypoint.", NamedTextColor.GREEN)
+                    ? colorLine("Anyone can visit this Pinpoint.", NamedTextColor.GREEN)
                     : colorLine("Only you and invited players can visit.", NamedTextColor.RED));
             pubLore.add(colorLine("Click to toggle visibility", NamedTextColor.GRAY));
             inv.setItem(11, makeItem(pubMat, pubLabel, pubLore));
@@ -219,9 +253,9 @@ public class GuiManager implements Listener {
                 });
             }
 
-            inv.setItem(14, makeItem(Material.ENDER_PEARL, "Get Waypoint Pearl",
-                    List.of(colorLine("Gives you a Waypoint Pearl", NamedTextColor.YELLOW),
-                            colorLine("Use it to access all your waypoints", NamedTextColor.GRAY))));
+            inv.setItem(14, makeItem(Material.ENDER_PEARL, "Get Pinpoint Pearl",
+                    List.of(colorLine("Gives you a Pinpoint Pearl", NamedTextColor.YELLOW),
+                            colorLine("Use it to access all your Pinpoints", NamedTextColor.GRAY))));
             handlers.put(14, () -> {
                 if (!wp.isOwner(player.getUniqueId())) {
                     player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
@@ -230,7 +264,7 @@ public class GuiManager implements Listener {
                 plugin.getItemManager().giveWaypointPearl(player);
             });
 
-            inv.setItem(15, makeItem(Material.NAME_TAG, "Rename Waypoint",
+            inv.setItem(15, makeItem(Material.NAME_TAG, "Rename Pinpoint",
                     List.of(colorLine("Type a new name in chat", NamedTextColor.YELLOW))));
             handlers.put(15, () -> {
                 if (!wp.isOwner(player.getUniqueId())) {
@@ -243,8 +277,8 @@ public class GuiManager implements Listener {
                 plugin.getChatInputListener().schedulePendingRenameTimeout(player, wp.getId());
             });
 
-            inv.setItem(16, makeItem(Material.TNT, "Delete Waypoint",
-                    List.of(colorLine("Permanently removes this waypoint", NamedTextColor.RED),
+            inv.setItem(16, makeItem(Material.TNT, "Delete Pinpoint",
+                    List.of(colorLine("Permanently removes this Pinpoint", NamedTextColor.RED),
                             colorLine("This cannot be undone!", NamedTextColor.DARK_RED))));
             handlers.put(16, () -> {
                 if (!wp.isOwner(player.getUniqueId())) {
@@ -283,11 +317,11 @@ public class GuiManager implements Listener {
                         colorLine("This cannot be undone!", NamedTextColor.RED))));
 
         inv.setItem(11, makeItem(Material.LIME_WOOL, "Cancel",
-                List.of(colorLine("Go back, keep waypoint", NamedTextColor.GREEN))));
+                List.of(colorLine("Go back, keep Pinpoint", NamedTextColor.GREEN))));
         handlers.put(11, () -> openManageGui(player, wp, fromBlock));
 
         inv.setItem(15, makeItem(Material.RED_WOOL, "Confirm Delete",
-                List.of(colorLine("Permanently deletes this waypoint", NamedTextColor.RED))));
+                List.of(colorLine("Permanently deletes this Pinpoint", NamedTextColor.RED))));
         handlers.put(15, () -> {
             Location blockLoc = wp.getLocation();
             plugin.getHologramManager().removeHologram(wp.getId());
@@ -375,7 +409,7 @@ public class GuiManager implements Listener {
                     if (finalOnline.isOnline()) {
                         finalOnline.sendMessage(plugin.msg("prefix")
                                 + "§b" + player.getName()
-                                + " §ahas given you access to waypoint §b" + wp.getName() + "§a.");
+                                + " §ahas given you access to Pinpoint §b" + wp.getName() + "§a.");
                     }
                 }
                 plugin.getWaypointManager().saveWaypoint(wp);

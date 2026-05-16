@@ -102,7 +102,7 @@ public class PartyGuiManager {
         Party party = plugin.getPartyManager().getPartyOf(player.getUniqueId());
 
         if (party == null) {
-            player.sendMessage(plugin.msg("prefix") + "§cYou are not in a party. Shift+right-click a player with your Waypoint Pearl to link up.");
+            player.sendMessage(plugin.msg("prefix") + "§cYou are not in a party. Shift+right-click a player with your Pinpoint Pearl to link up.");
             return;
         }
 

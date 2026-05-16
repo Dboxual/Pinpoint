@@ -43,7 +43,7 @@ public class WaypointInteractListener implements Listener {
                 }
                 Waypoint wp = wpOpt.get();
                 if (!wp.canAccess(player.getUniqueId())) {
-                    player.sendMessage(plugin.msg("prefix") + "§cThis waypoint is private.");
+                    player.sendMessage(plugin.msg("prefix") + "§cThis Pinpoint is private.");
                     return;
                 }
                 plugin.getGuiManager().openHubGui(player, wp.getId(), true);
@@ -105,7 +105,7 @@ public class WaypointInteractListener implements Listener {
             // Regular right-click player → invite them to a waypoint
             List<Waypoint> owned = plugin.getWaypointManager().getOwnedWaypoints(player.getUniqueId());
             if (owned.isEmpty()) {
-                player.sendMessage(plugin.msg("prefix") + "§cYou don't own any waypoints to invite to.");
+                player.sendMessage(plugin.msg("prefix") + "§cYou don't own any Pinpoints to invite to.");
                 return;
             }
             plugin.getGuiManager().openInviteSelectGui(player, target, owned);

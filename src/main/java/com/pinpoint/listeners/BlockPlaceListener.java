@@ -38,7 +38,7 @@ public class BlockPlaceListener implements Listener {
         }
 
         if (plugin.getWaypointManager().hasPendingNaming(player.getUniqueId())) {
-            player.sendMessage(plugin.msg("prefix") + "§cFinish naming your current waypoint first.");
+            player.sendMessage(plugin.msg("prefix") + "§cFinish naming your current Pinpoint first.");
             event.setCancelled(true);
             return;
         }

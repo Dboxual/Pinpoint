@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.2.8 — 2026-05-16
+### Added
+- **Hub GUI pagination** — the Pinpoint hub is now a fixed 6-row (54-slot) inventory with 28 Pinpoints per page (rows 1-4, columns 1-7). RED_STAINED_GLASS_PANE (slot 45) navigates to the previous page; GREEN_STAINED_GLASS_PANE (slot 53) to the next. A PAPER item (slot 47) shows the current page number. The focused Pinpoint compass (slot 49) and Close barrier (slot 51) are in the bottom row. The page is remembered when navigating to the manage GUI and back, and reset when explicitly closing.
+
+### Changed
+- **All player-facing "waypoint/waystone" text renamed to "Pinpoint/Pinpoints"** — affects messages, GUI labels, item names, lore, and config.yml message values. Database keys, PDC keys, permission nodes, and command aliases are unchanged.
+
+---
+
 ## v1.2.7 — 2026-05-15
 ### Fixed
 - **Shift+Pearl now accepts teleport invites immediately** — the Accept/Deny GUI was previously forced open on the invitee's screen the moment an invite arrived. On Bedrock (and any client with an inventory visible), this blocked the `PlayerInteractEvent` path, making shift+right-click appear to do nothing useful. Fix: `sendInvite()` no longer calls `openAcceptDenyGui` on the target. The target receives a chat-only notification instead ("Shift+Pearl to accept, or /wp accept | /wp deny"). Shift+right-click with the Waypoint Pearl now accepts immediately, starts the teleport countdown, and opens no GUI.

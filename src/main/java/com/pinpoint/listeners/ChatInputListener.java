@@ -149,7 +149,7 @@ public class ChatInputListener implements Listener {
                 }
                 plugin.getWaypointManager().getWaypoint(waypointId).ifPresentOrElse(wp -> {
                     if (!wp.isOwner(uuid)) {
-                        player.sendMessage(plugin.msg("prefix") + "§cNot your waypoint.");
+                        player.sendMessage(plugin.msg("prefix") + "§cNot your Pinpoint.");
                         return;
                     }
                     wp.setFee(fee);
@@ -157,7 +157,7 @@ public class ChatInputListener implements Listener {
                     plugin.getHologramManager().updateHologram(wp);
                     player.sendMessage(plugin.msg("prefix") + "§aFee for §b" + wp.getName() + "§a set to §e"
                             + plugin.getEconomyManager().format(fee) + "§a.");
-                }, () -> player.sendMessage(plugin.msg("prefix") + "§cWaypoint no longer exists."));
+                }, () -> player.sendMessage(plugin.msg("prefix") + "§cPinpoint no longer exists."));
             });
         }
     }
@@ -171,7 +171,7 @@ public class ChatInputListener implements Listener {
                 plugin.getWaypointManager().clearPendingRenaming(uuid);
                 plugin.getWaypointManager().clearPendingRenamingTaskId(uuid);
                 if (player.isOnline()) {
-                    player.sendMessage(plugin.msg("prefix") + "§cWaypoint rename timed out. No changes made.");
+                    player.sendMessage(plugin.msg("prefix") + "§cPinpoint rename timed out. No changes made.");
                 }
             }
         }, TIMEOUT_TICKS).getTaskId();
@@ -189,7 +189,7 @@ public class ChatInputListener implements Listener {
                 plugin.getWaypointManager().clearPendingNamingTaskId(uuid);
                 restoreWaypointBlock(player, loc);
                 if (player.isOnline()) {
-                    player.sendMessage(plugin.msg("prefix") + "§cWaypoint naming timed out. Block removed.");
+                    player.sendMessage(plugin.msg("prefix") + "§cPinpoint naming timed out. Block removed.");
                 }
             }
         }, TIMEOUT_TICKS).getTaskId();
@@ -216,7 +216,7 @@ public class ChatInputListener implements Listener {
         plugin.getWaypointManager().clearPendingRenaming(uuid);
         plugin.getWaypointManager().clearPendingRenamingTaskId(uuid);
         plugin.getServer().getScheduler().runTask(plugin, () ->
-                player.sendMessage(plugin.msg("prefix") + "§cWaypoint rename cancelled."));
+                player.sendMessage(plugin.msg("prefix") + "§cPinpoint rename cancelled."));
     }
 
     private void cancelNaming(Player player, UUID uuid) {
@@ -227,7 +227,7 @@ public class ChatInputListener implements Listener {
         plugin.getWaypointManager().clearPendingNamingTaskId(uuid);
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             restoreWaypointBlock(player, loc);
-            player.sendMessage(plugin.msg("prefix") + "§cWaypoint naming cancelled. Block removed.");
+            player.sendMessage(plugin.msg("prefix") + "§cPinpoint naming cancelled. Block removed.");
         });
     }
 

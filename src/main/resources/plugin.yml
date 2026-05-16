@@ -1,5 +1,5 @@
 name: Pinpoint
-version: '1.2.7'
+version: '1.2.8'
 main: com.pinpoint.PinpointPlugin
 api-version: '1.21'
 description: Geyser-compatible craftable waypoint system
@@ -7,11 +7,11 @@ softdepend: [Vault, Geyser-Spigot]
 
 commands:
   waypoint:
-    description: Main waypoint command
+    description: Main Pinpoint command
     usage: |
-      /waypoint           - Open waypoint hub GUI
-      /waypoint menu      - Open waypoint hub GUI
-      /waypoint list      - List your accessible waypoints
+      /waypoint           - Open Pinpoint hub GUI
+      /waypoint menu      - Open Pinpoint hub GUI
+      /waypoint list      - List your accessible Pinpoints
       /waypoint accept    - Accept a pending teleport invite
       /waypoint deny      - Deny a pending teleport invite
       /waypoint reload    - Reload config and data (admin)
