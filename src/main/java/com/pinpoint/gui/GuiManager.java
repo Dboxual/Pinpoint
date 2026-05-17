@@ -329,6 +329,12 @@ public class GuiManager implements Listener {
             if (blockLoc != null && blockLoc.getBlock().getType() == Material.LODESTONE) {
                 blockLoc.getBlock().setType(Material.AIR);
             }
+            // Return the Pinpoint item to the owner; drop at block location if inventory is full
+            ItemStack returned = plugin.getItemManager().createWaypointBlockItem();
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(returned);
+            if (!leftover.isEmpty() && blockLoc != null) {
+                blockLoc.getWorld().dropItemNaturally(blockLoc, leftover.get(0));
+            }
             closeGui(player);
             player.sendMessage(plugin.msg("prefix") +
                     String.format(plugin.msgCfg("waypoint-deleted"), wp.getName()));

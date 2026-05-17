@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.9 — 2026-05-17
+### Fixed
+- **Confirm-delete now returns the Pinpoint item** — deleting a placed Pinpoint through the GUI now gives the Lodestone Pinpoint item back to the owner. If the owner's inventory is full, the item drops naturally at the Pinpoint's block location. The item is only returned after all data (hologram, in-memory state, YAML storage) has been cleaned up, preventing any duplication.
+
+---
+
 ## v1.2.8 — 2026-05-16
 ### Added
 - **Hub GUI pagination** — the Pinpoint hub is now a fixed 6-row (54-slot) inventory with 28 Pinpoints per page (rows 1-4, columns 1-7). RED_STAINED_GLASS_PANE (slot 45) navigates to the previous page; GREEN_STAINED_GLASS_PANE (slot 53) to the next. A PAPER item (slot 47) shows the current page number. The focused Pinpoint compass (slot 49) and Close barrier (slot 51) are in the bottom row. The page is remembered when navigating to the manage GUI and back, and reset when explicitly closing.
