@@ -68,16 +68,14 @@ public class HologramManager implements Listener {
         }
     }
 
-    // Hide all holograms on join; the visibility task reveals applicable ones within the next second.
-    // The 5-tick delay lets the server finish initialising the player's position and chunks.
+    // Hide all holograms immediately on join (no position needed), then re-evaluate after
+    // 5 ticks once the player's location and chunks are fully initialised.
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         if (!isEnabled()) return;
         Player player = event.getPlayer();
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            hideAllFromPlayer(player);
-            updateVisibilityForPlayer(player);
-        }, 5L);
+        hideAllFromPlayer(player);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> updateVisibilityForPlayer(player), 5L);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────

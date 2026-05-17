@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.1 — 2026-05-17
+### Fixed
+- **Hologram flash on player join** — on join, `hideAllFromPlayer` was delayed 5 ticks along with the visibility re-evaluation, meaning the joining player received entity spawn packets for all armor stands during that window. The hide is now applied immediately (synchronous, no delay); only the visibility re-evaluation is deferred 5 ticks so the player's position is fully initialised before showing applicable holograms.
+
+---
+
 ## v1.3.0 — 2026-05-17
 ### Added
 - **Hologram privacy — distance and line-of-sight filtering** — holograms are now hidden per-player using `showEntity`/`hideEntity`. A repeating task (once per second) checks every online player against every hologram and reveals or hides it based on two configurable rules:
