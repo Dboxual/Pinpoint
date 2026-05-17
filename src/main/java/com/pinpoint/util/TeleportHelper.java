@@ -227,6 +227,14 @@ public class TeleportHelper {
                 String.format(plugin.msgCfg("waypoint-teleported"), wp.getName()));
         plugin.getWaypointManager().setRecallCooldown(player.getUniqueId());
 
+        // 5-second invincibility window after landing — only applied if not already invulnerable
+        if (!player.isInvulnerable()) {
+            player.setInvulnerable(true);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) player.setInvulnerable(false);
+            }, 100L);
+        }
+
         // Notify party members — skipped for follow teleports to prevent re-notification loops
         if (!suppressFollowPrompt) {
             plugin.getPartyGuiManager().notifyPartyTravel(player, wp);

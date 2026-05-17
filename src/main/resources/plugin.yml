@@ -1,5 +1,5 @@
 name: Pinpoint
-version: '1.3.3'
+version: '1.3.4'
 main: com.pinpoint.PinpointPlugin
 api-version: '1.21'
 description: Geyser-compatible craftable waypoint system

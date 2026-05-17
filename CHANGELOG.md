@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.4 — 2026-05-17
+### Added
+- **Post-teleport invincibility** — after any successful Pinpoint teleport (solo block, solo pearl, group invite, or party follow), the player receives 5 seconds of invincibility. This applies only on successful landing; cancelled countdowns grant nothing. Players who are already invulnerable (e.g. via admin flag) are not affected.
+
+---
+
 ## v1.3.3 — 2026-05-17
 ### Changed
 - **Group teleport: synchronized 5-second countdown** — when a teleport invite is accepted, both the inviter and invitee now start a shared 5-second countdown in the same server tick rather than independent 10-second countdowns. Both must stand still; if either moves or takes damage their individual teleport is cancelled. Both arrive at the Pinpoint at the same time.
