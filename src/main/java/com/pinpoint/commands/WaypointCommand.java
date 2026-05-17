@@ -173,13 +173,16 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         }
 
         Waypoint wp = wpOpt.get();
-        plugin.getTeleportHelper().teleport(player, wp);
-
         Player inviter = Bukkit.getPlayer(invite.inviterUuid);
+        String inviterName = inviter != null ? inviter.getName() : "your group";
+
+        // Both players start their 5-second group countdown in the same tick → synchronized arrival
+        plugin.getTeleportHelper().teleportGroupMember(player, wp, inviterName, false);
+
         if (inviter != null && inviter.isOnline()) {
             inviter.sendMessage(plugin.msg("prefix") +
                     String.format(plugin.msgCfg("invite-accepted"), player.getName()));
-            plugin.getTeleportHelper().teleport(inviter, wp);
+            plugin.getTeleportHelper().teleportGroupMember(inviter, wp, player.getName(), false);
         }
 
         plugin.getWaypointManager().removeInvite(uuid);

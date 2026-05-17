@@ -103,22 +103,71 @@ public class TeleportHelper {
     }
 
     /**
-     * Party-follow teleport: skips the normal countdown and hold-still requirement.
-     * A 1-second delay gives the "traveling together" feeling without the full queue.
+     * Group teleport: 5-second countdown with movement cancellation.
+     * Used for both invite-accept travel and party follow.
+     * suppressFollowPrompt=true prevents re-triggering the party notification chain.
+     */
+    public void teleportGroupMember(Player player, Waypoint wp, String partnerName, boolean suppressFollowPrompt) {
+        int delaySeconds = 5;
+
+        if (plugin.getWaypointManager().isOnRecallCooldown(player.getUniqueId())) {
+            long secs = plugin.getWaypointManager().getRemainingCooldownSeconds(player.getUniqueId());
+            player.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("cooldown-active"), secs));
+            return;
+        }
+        if (plugin.getWaypointManager().hasPendingTeleport(player.getUniqueId())) {
+            player.sendMessage(plugin.msg("prefix") + "§cYou already have a teleport in progress.");
+            return;
+        }
+
+        WaypointManager.PendingTeleport pt = new WaypointManager.PendingTeleport(
+                player.getUniqueId(), wp.getId(), player.getLocation().clone());
+        plugin.getWaypointManager().setPendingTeleport(player.getUniqueId(), pt);
+
+        player.sendMessage(plugin.msg("prefix")
+                + "§aTraveling to §b" + wp.getName()
+                + "§a with §b" + partnerName
+                + "§a — stand still for §b5s§a!");
+
+        int[] remaining = {delaySeconds};
+        int countdownTaskId = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (!plugin.getWaypointManager().hasPendingTeleport(player.getUniqueId())) return;
+            if (remaining[0] > 0) {
+                player.sendActionBar(Component.text("Traveling with ")
+                        .color(NamedTextColor.GREEN)
+                        .append(Component.text(partnerName).color(NamedTextColor.AQUA))
+                        .append(Component.text(" in ").color(NamedTextColor.GREEN))
+                        .append(Component.text(remaining[0] + "s")
+                                .color(NamedTextColor.WHITE)
+                                .decorate(TextDecoration.BOLD))
+                        .append(Component.text("... Don't move.").color(NamedTextColor.YELLOW)));
+                remaining[0]--;
+            }
+        }, 0L, 20L).getTaskId();
+        pt.countdownTaskId = countdownTaskId;
+
+        int taskId = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!plugin.getWaypointManager().hasPendingTeleport(player.getUniqueId())) return;
+            plugin.getWaypointManager().clearPendingTeleport(player.getUniqueId());
+            if (pt.countdownTaskId != -1) plugin.getServer().getScheduler().cancelTask(pt.countdownTaskId);
+            player.sendActionBar(Component.empty());
+
+            plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
+                    current -> doTeleport(player, current, suppressFollowPrompt),
+                    () -> player.sendMessage(plugin.msg("prefix") + "§cPinpoint no longer exists.")
+            );
+        }, delaySeconds * 20L).getTaskId();
+
+        pt.taskId = taskId;
+    }
+
+    /**
+     * Party-follow teleport: 5-second group countdown with movement cancellation.
      * suppressFollowPrompt=true so the follow itself does not trigger another notification chain.
      */
     public void partyFollow(Player player, Waypoint wp, String travelerName) {
-        player.sendMessage(plugin.msg("prefix") + "§aTraveling with §b" + travelerName + "§a...");
-        player.sendActionBar(Component.text("Following ")
-                .color(NamedTextColor.GREEN)
-                .append(Component.text(travelerName).color(NamedTextColor.AQUA))
-                .append(Component.text("...").color(NamedTextColor.GREEN)));
-        plugin.getServer().getScheduler().runTaskLater(plugin, () ->
-                plugin.getWaypointManager().getWaypoint(wp.getId()).ifPresentOrElse(
-                        current -> doTeleport(player, current, true),
-                        () -> player.sendMessage(plugin.msg("prefix")
-                                + "§cThe Pinpoint you were following no longer exists.")
-                ), 20L);
+        teleportGroupMember(player, wp, travelerName, true);
     }
 
     // --- Internal: immediate teleport (called after countdown elapses) ---

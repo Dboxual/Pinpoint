@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.3 — 2026-05-17
+### Changed
+- **Group teleport: synchronized 5-second countdown** — when a teleport invite is accepted, both the inviter and invitee now start a shared 5-second countdown in the same server tick rather than independent 10-second countdowns. Both must stand still; if either moves or takes damage their individual teleport is cancelled. Both arrive at the Pinpoint at the same time.
+- **Party follow: proper countdown with movement check** — following a party member's travel now uses the same 5-second group countdown (stand still, or teleport cancels) instead of the previous 1-second insta-teleport with no movement check.
+- **Action bar during group travel** shows "Traveling with [name] in Xs... Don't move." for the duration of the countdown.
+
+---
+
 ## v1.3.2 — 2026-05-17
 ### Changed
 - **Shift+right-click player now opens invite/remove GUI** — previously, shift+right-clicking a player with the Pinpoint Pearl sent a party link request. It now opens the "Pinpoint Access" GUI for the player's owned Pinpoints (same as a normal right-click on a player). If the target already has access to a Pinpoint, clicking that entry removes their access instead of re-inviting. Falls back to party link only when the player owns no Pinpoints.
