@@ -94,6 +94,7 @@ public class PinpointPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PartyListener(this), this);
 
         hologramManager.spawnAll();
+        hologramManager.startVisibilityTask();
 
         getLogger().info("Pinpoint enabled with " + waypointManager.getAllWaypoints().size() + " waypoints loaded.");
     }
@@ -118,7 +119,10 @@ public class PinpointPlugin extends JavaPlugin {
             partyManager.loadParty(party);
         }
         economyManager.setup();
-        if (hologramManager != null) hologramManager.spawnAll();
+        if (hologramManager != null) {
+            hologramManager.spawnAll();
+            hologramManager.startVisibilityTask();
+        }
         getLogger().info("Pinpoint reloaded. Waypoints: " + waypointManager.getAllWaypoints().size()
                 + ", Parties: " + partyManager.getAllParties().size());
     }

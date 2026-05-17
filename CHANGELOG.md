@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.3.0 — 2026-05-17
+### Added
+- **Hologram privacy — distance and line-of-sight filtering** — holograms are now hidden per-player using `showEntity`/`hideEntity`. A repeating task (once per second) checks every online player against every hologram and reveals or hides it based on two configurable rules:
+  - `holograms.view-distance` (default `8`) — maximum distance in blocks at which a hologram is visible.
+  - `holograms.require-line-of-sight` (default `true`) — hides the hologram when solid blocks are between the player and the Pinpoint block, preventing holograms from revealing hidden bases through walls.
+- Holograms are hidden from players immediately on spawn; players in range with line-of-sight see them appear within one server tick.
+- Players who log in have all holograms hidden immediately, then re-evaluated after 5 ticks once their position is fully loaded.
+
+---
+
 ## v1.2.9 — 2026-05-17
 ### Fixed
 - **Confirm-delete now returns the Pinpoint item** — deleting a placed Pinpoint through the GUI now gives the Lodestone Pinpoint item back to the owner. If the owner's inventory is full, the item drops naturally at the Pinpoint's block location. The item is only returned after all data (hologram, in-memory state, YAML storage) has been cleaned up, preventing any duplication.

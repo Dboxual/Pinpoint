@@ -27,6 +27,11 @@ holograms:
   show-owner: true
   # Include the fee (or "Free") in the hologram. Only shown when Vault is enabled.
   show-fee: true
+  # Maximum distance in blocks at which a player can see a hologram (default 8).
+  view-distance: 8
+  # Hide holograms when the player has no direct line of sight to the Pinpoint block.
+  # Prevents holograms from revealing bases through walls.
+  require-line-of-sight: true
 
 messages:
   prefix: "&8[&bPinpoints&8] &r"

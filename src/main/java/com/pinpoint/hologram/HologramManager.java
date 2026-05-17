@@ -8,9 +8,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 
 import java.util.*;
@@ -18,8 +19,9 @@ import java.util.*;
 public class HologramManager implements Listener {
 
     private final PinpointPlugin plugin;
-    // waypoint UUID -> list of armor stand entity UUIDs (one per display line)
-    private final Map<UUID, List<UUID>> waypointEntities = new HashMap<>();
+    // waypoint UUID -> live ArmorStand references (one per display line)
+    private final Map<UUID, List<ArmorStand>> waypointStands = new HashMap<>();
+    private int visibilityTaskId = -1;
 
     public HologramManager(PinpointPlugin plugin) {
         this.plugin = plugin;
@@ -29,7 +31,28 @@ public class HologramManager implements Listener {
         return plugin.getConfig().getBoolean("holograms.enabled", true);
     }
 
-    // Respawn holograms for any waypoints whose block is in this chunk.
+    // ── Visibility task ───────────────────────────────────────────────────────
+
+    public void startVisibilityTask() {
+        if (visibilityTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(visibilityTaskId);
+        }
+        visibilityTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                updateVisibilityForPlayer(player);
+            }
+        }, 20L, 20L);
+    }
+
+    public void stopVisibilityTask() {
+        if (visibilityTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(visibilityTaskId);
+            visibilityTaskId = -1;
+        }
+    }
+
+    // ── Events ────────────────────────────────────────────────────────────────
+
     @EventHandler
     public void onChunkLoad(ChunkLoadEvent event) {
         if (!isEnabled()) return;
@@ -45,6 +68,20 @@ public class HologramManager implements Listener {
         }
     }
 
+    // Hide all holograms on join; the visibility task reveals applicable ones within the next second.
+    // The 5-tick delay lets the server finish initialising the player's position and chunks.
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        if (!isEnabled()) return;
+        Player player = event.getPlayer();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            hideAllFromPlayer(player);
+            updateVisibilityForPlayer(player);
+        }, 5L);
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
     public void spawnAll() {
         if (!isEnabled()) return;
         for (Waypoint wp : plugin.getWaypointManager().getAllWaypoints()) {
@@ -53,10 +90,11 @@ public class HologramManager implements Listener {
     }
 
     public void removeAll() {
-        for (List<UUID> ids : waypointEntities.values()) {
-            removeEntities(ids);
+        stopVisibilityTask();
+        for (List<ArmorStand> stands : waypointStands.values()) {
+            removeStands(stands);
         }
-        waypointEntities.clear();
+        waypointStands.clear();
     }
 
     public void spawnHologram(Waypoint wp) {
@@ -74,9 +112,8 @@ public class HologramManager implements Listener {
         double baseY = loc.getY() + plugin.getConfig().getDouble("holograms.height", 1.8);
 
         List<Component> lines = buildLines(wp);
-        List<UUID> ids = new ArrayList<>();
+        List<ArmorStand> stands = new ArrayList<>();
 
-        // lines[0] = bottom (fee), lines[last] = top (name) — stack upward
         for (int i = 0; i < lines.size(); i++) {
             double y = baseY + i * 0.3;
             Location spawnLoc = new Location(world, x, y, z);
@@ -89,18 +126,74 @@ public class HologramManager implements Listener {
                 as.customName(line);
                 as.setPersistent(false);
             });
-            ids.add(stand.getUniqueId());
+            // Start hidden from everyone; per-player visibility applied below
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.hideEntity(plugin, stand);
+            }
+            stands.add(stand);
         }
-        waypointEntities.put(wp.getId(), ids);
+
+        waypointStands.put(wp.getId(), stands);
+
+        // Immediately show to players already in range/LOS so there's no 1-second delay
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            applyVisibility(p, stands);
+        }
     }
 
     public void removeHologram(UUID waypointId) {
-        List<UUID> ids = waypointEntities.remove(waypointId);
-        if (ids != null) removeEntities(ids);
+        List<ArmorStand> stands = waypointStands.remove(waypointId);
+        if (stands != null) removeStands(stands);
     }
 
     public void updateHologram(Waypoint wp) {
         spawnHologram(wp);
+    }
+
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    private void updateVisibilityForPlayer(Player player) {
+        for (List<ArmorStand> stands : waypointStands.values()) {
+            applyVisibility(player, stands);
+        }
+    }
+
+    // Show or hide a group of stands for one player based on range + LOS.
+    private void applyVisibility(Player player, List<ArmorStand> stands) {
+        if (stands.isEmpty()) return;
+        ArmorStand ref = stands.get(0);
+        if (!ref.isValid()) return;
+
+        boolean visible = canSee(player, ref);
+        for (ArmorStand stand : stands) {
+            if (!stand.isValid()) continue;
+            if (visible) {
+                player.showEntity(plugin, stand);
+            } else {
+                player.hideEntity(plugin, stand);
+            }
+        }
+    }
+
+    private boolean canSee(Player player, ArmorStand stand) {
+        if (!player.getWorld().equals(stand.getWorld())) return false;
+
+        double viewDist = plugin.getConfig().getDouble("holograms.view-distance", 8.0);
+        if (player.getLocation().distanceSquared(stand.getLocation()) > viewDist * viewDist) return false;
+
+        if (plugin.getConfig().getBoolean("holograms.require-line-of-sight", true)) {
+            if (!player.hasLineOfSight(stand)) return false;
+        }
+
+        return true;
+    }
+
+    private void hideAllFromPlayer(Player player) {
+        for (List<ArmorStand> stands : waypointStands.values()) {
+            for (ArmorStand stand : stands) {
+                if (stand.isValid()) player.hideEntity(plugin, stand);
+            }
+        }
     }
 
     private List<Component> buildLines(Waypoint wp) {
@@ -131,15 +224,9 @@ public class HologramManager implements Listener {
         return lines;
     }
 
-    private void removeEntities(List<UUID> ids) {
-        for (UUID id : ids) {
-            for (World world : Bukkit.getWorlds()) {
-                Entity e = world.getEntity(id);
-                if (e != null) {
-                    e.remove();
-                    break;
-                }
-            }
+    private void removeStands(List<ArmorStand> stands) {
+        for (ArmorStand stand : stands) {
+            if (stand.isValid()) stand.remove();
         }
     }
 }

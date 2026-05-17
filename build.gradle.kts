@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.pinpoint"
-version = "1.2.9"
+version = "1.3.0"
 description = "Pinpoint"
 
 java {
