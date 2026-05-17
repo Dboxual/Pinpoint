@@ -98,12 +98,18 @@ public class WaypointInteractListener implements Listener {
             return;
         }
 
+        List<Waypoint> owned = plugin.getWaypointManager().getOwnedWaypoints(player.getUniqueId());
+
         if (player.isSneaking()) {
-            // Shift+right-click player → party link request
-            plugin.getPartyGuiManager().sendLinkRequest(player, target);
+            // Shift+right-click player → invite or remove access
+            if (!owned.isEmpty()) {
+                plugin.getGuiManager().openInviteSelectGui(player, target, owned);
+            } else {
+                // No Pinpoints owned — fall back to party link request
+                plugin.getPartyGuiManager().sendLinkRequest(player, target);
+            }
         } else {
-            // Regular right-click player → invite them to a waypoint
-            List<Waypoint> owned = plugin.getWaypointManager().getOwnedWaypoints(player.getUniqueId());
+            // Regular right-click player → invite or remove access
             if (owned.isEmpty()) {
                 player.sendMessage(plugin.msg("prefix") + "§cYou don't own any Pinpoints to invite to.");
                 return;

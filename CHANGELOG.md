@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3.2 — 2026-05-17
+### Changed
+- **Shift+right-click player now opens invite/remove GUI** — previously, shift+right-clicking a player with the Pinpoint Pearl sent a party link request. It now opens the "Pinpoint Access" GUI for the player's owned Pinpoints (same as a normal right-click on a player). If the target already has access to a Pinpoint, clicking that entry removes their access instead of re-inviting. Falls back to party link only when the player owns no Pinpoints.
+- **`openInviteSelectGui` now shows access state per Pinpoint** — each entry shows whether the target already has access. Clicking a Pinpoint where the target has access removes it (with a notification to both parties); clicking one where they don't sends a teleport invite. Public Pinpoints show a note that everyone already has access.
+- **Pearl lore corrected** — removed the broken lore line "Right-click player: invite to a waypoint" (used "waypoint" wording). Replaced with "Right-click player: invite to a Pinpoint". Updated shift+right-click lore to "invite or remove access".
+- **Invite/remove GUI title** changed from "Invite [player] to:" to "Pinpoint Access: [player]" to reflect both invite and removal actions.
+
+---
+
 ## v1.3.1 — 2026-05-17
 ### Fixed
 - **Hologram flash on player join** — on join, `hideAllFromPlayer` was delayed 5 ticks along with the visibility re-evaluation, meaning the joining player received entity spawn packets for all armor stands during that window. The hide is now applied immediately (synchronous, no delay); only the visibility re-evaluation is deferred 5 ticks so the player's position is fully initialised before showing applicable holograms.

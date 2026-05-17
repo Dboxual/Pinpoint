@@ -456,20 +456,47 @@ public class GuiManager implements Listener {
         Set<String> dupes = duplicateNames(options);
         int rows = Math.max(3, Math.min(6, (int) Math.ceil((options.size() + 9) / 9.0) + 1));
         Inventory inv = Bukkit.createInventory(null, rows * 9,
-                Component.text("Invite " + target.getName() + " to:").color(NamedTextColor.AQUA));
+                Component.text("Pinpoint Access: " + target.getName()).color(NamedTextColor.AQUA));
         Map<Integer, Runnable> handlers = new HashMap<>();
         fillBorder(inv, rows);
 
         int slot = 10;
         for (Waypoint wp : options) {
             if (slot >= rows * 9 - 9) break;
+            boolean hasAccess = wp.isInvited(target.getUniqueId());
             List<Component> lore = new ArrayList<>();
             lore.add(colorLine(wp.isPublic() ? "Public" : "Private",
                     wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED));
-            lore.add(colorLine("Click to invite " + target.getName(), NamedTextColor.YELLOW));
+            if (wp.isPublic()) {
+                lore.add(colorLine("Everyone already has access", NamedTextColor.GRAY));
+            } else if (hasAccess) {
+                lore.add(colorLine(target.getName() + " has access", NamedTextColor.GREEN));
+                lore.add(colorLine("Click to remove access", NamedTextColor.RED));
+            } else {
+                lore.add(colorLine("Click to invite " + target.getName(), NamedTextColor.YELLOW));
+            }
             inv.setItem(slot, makeItem(wp.getIconMaterial(), label(wp, dupes), lore));
             final Waypoint finalWp = wp;
-            handlers.put(slot, () -> sendInvite(inviter, target, finalWp));
+            final boolean finalHasAccess = hasAccess;
+            handlers.put(slot, () -> {
+                if (wp.isPublic()) {
+                    inviter.sendMessage(plugin.msg("prefix") + "§7This Pinpoint is public — everyone already has access.");
+                    return;
+                }
+                if (finalHasAccess) {
+                    finalWp.removeInvite(target.getUniqueId());
+                    plugin.getWaypointManager().saveWaypoint(finalWp);
+                    inviter.sendMessage(plugin.msg("prefix")
+                            + "§cRemoved access for §b" + target.getName() + "§c.");
+                    if (target.isOnline()) {
+                        target.sendMessage(plugin.msg("prefix")
+                                + "§cYour access to §b" + finalWp.getName() + "§c has been removed.");
+                    }
+                    closeGui(inviter);
+                } else {
+                    sendInvite(inviter, target, finalWp);
+                }
+            });
             slot++;
             if ((slot % 9) == 8) slot += 2;
         }

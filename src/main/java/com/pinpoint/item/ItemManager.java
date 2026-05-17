@@ -78,8 +78,8 @@ public class ItemManager {
         meta.displayName(text("Pinpoint Pearl", NamedTextColor.LIGHT_PURPLE));
         meta.lore(List.of(
                 text("Right-click: open accessible Pinpoints", NamedTextColor.GRAY),
-                text("Right-click player: invite to a waypoint", NamedTextColor.DARK_GRAY),
-                text("Shift+right-click player: send link request", NamedTextColor.DARK_GRAY)
+                text("Right-click player: invite to a Pinpoint", NamedTextColor.DARK_GRAY),
+                text("Shift+right-click player: invite or remove access", NamedTextColor.DARK_GRAY)
         ));
         meta.getPersistentDataContainer().set(KEY_WAYPOINT_PEARL, PersistentDataType.BYTE, (byte) 1);
         item.setItemMeta(meta);
