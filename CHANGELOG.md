@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.5 — 2026-05-17
+### Fixed
+- **Breaking an unfinished Pinpoint during setup now refunds the item** — if a player breaks the Lodestone block before completing the naming step, the setup state is cancelled, the vanilla Lodestone drop is suppressed, and the original tagged Pinpoint item is returned to the player's inventory (or dropped at the block if the inventory is full). Previously the setup state would remain dangling until timeout and the block dropped as a plain Lodestone.
+
+---
+
 ## v1.3.4 — 2026-05-17
 ### Added
 - **Post-teleport invincibility** — after any successful Pinpoint teleport (solo block, solo pearl, group invite, or party follow), the player receives 5 seconds of invincibility. This applies only on successful landing; cancelled countdowns grant nothing. Players who are already invulnerable (e.g. via admin flag) are not affected.
