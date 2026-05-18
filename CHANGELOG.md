@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.6 — 2026-05-18
+### Fixed
+- **Pinpoint pearl in offhand no longer throws as a vanilla ender pearl** — `PlayerInteractEvent` fires twice (once for `HAND`, once for `OFF_HAND`). The previous handler returned early for `OFF_HAND` events before cancelling, allowing the vanilla ender pearl throw to proceed when the Pinpoint pearl was in the offhand. The fix checks both hands for a Pinpoint pearl PDC tag and cancels the event unconditionally before the hand guard, then keeps the hand guard so GUI and invite logic only runs for the main-hand firing.
+
+---
+
 ## v1.3.5 — 2026-05-17
 ### Fixed
 - **Breaking an unfinished Pinpoint during setup now refunds the item** — if a player breaks the Lodestone block before completing the naming step, the setup state is cancelled, the vanilla Lodestone drop is suppressed, and the original tagged Pinpoint item is returned to the player's inventory (or dropped at the block if the inventory is full). Previously the setup state would remain dangling until timeout and the block dropped as a plain Lodestone.

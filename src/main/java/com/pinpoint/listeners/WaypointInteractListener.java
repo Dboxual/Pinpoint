@@ -26,9 +26,20 @@ public class WaypointInteractListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
-
         Player player = event.getPlayer();
+
+        // Prevent vanilla ender pearl throw for Pinpoint pearls in either hand.
+        // PlayerInteractEvent fires separately for HAND and OFF_HAND; we must cancel
+        // both firings, otherwise the OFF_HAND event reaches vanilla and launches the pearl.
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        ItemStack offHand  = player.getInventory().getItemInOffHand();
+        if (plugin.getItemManager().isWaypointPearl(mainHand)
+                || plugin.getItemManager().isWaypointPearl(offHand)) {
+            event.setCancelled(true);
+        }
+
+        // GUI / invite logic only runs for the main-hand firing.
+        if (event.getHand() != EquipmentSlot.HAND) return;
         Action action = event.getAction();
 
         // Right-click on a waypoint block (shift state irrelevant here)
