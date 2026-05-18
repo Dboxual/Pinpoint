@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.3.8 — 2026-05-18
+### Changed
+- **Ender Pearl compatibility fully removed** — `isWaypointCompass()` now requires `Material.COMPASS` in addition to the PDC tag. Old PDC-tagged Ender Pearl items no longer trigger any Pinpoint behaviour and function as normal vanilla Ender Pearls.
+- **`createWaypointPearl` / `isWaypointPearl` / `giveWaypointPearl(s)` renamed** to `createWaypointCompass` / `isWaypointCompass` / `giveWaypointCompass(es)`. `KEY_WAYPOINT_PEARL` renamed to `KEY_WAYPOINT_COMPASS` (PDC string value unchanged: `"waypoint_pearl"`).
+- **`/waypoint give <player> pearl` alias removed** — only `compass` is accepted.
+- **Offhand cancel guard removed from `WaypointInteractListener`** — COMPASS has no vanilla right-click behaviour, so the guard that existed solely to prevent Ender Pearl throws is no longer needed.
+- Recipe key renamed from `waypoint_pearl_recipe` to `waypoint_compass_recipe`.
+
+---
+
 ## v1.3.7 — 2026-05-18
 ### Changed
 - **Pinpoint navigation item is now a Compass instead of an Ender Pearl** — `createWaypointPearl()` now returns `Material.COMPASS` with display name "Pinpoint Compass". The crafting recipe changes accordingly: 4× Compass (corners) + 1× Ender Eye (center). The internal PDC key (`waypoint_pearl`) is intentionally unchanged so existing tagged Ender Pearl items remain fully functional — they will still be recognised by `isWaypointPearl()` and work identically to the new compass item, just with the old material.

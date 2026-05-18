@@ -26,22 +26,11 @@ public class WaypointInteractListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        Player player = event.getPlayer();
-
-        // Cancel vanilla item behaviour for tagged Pinpoint items in either hand.
-        // Old Ender-Pearl tagged items still need this to prevent throwing.
-        // New Compass items have no vanilla right-click action but we cancel anyway for consistency.
-        // PlayerInteractEvent fires separately for HAND and OFF_HAND; cancelling both firings
-        // prevents the OFF_HAND event from reaching vanilla behaviour.
-        ItemStack mainHand = player.getInventory().getItemInMainHand();
-        ItemStack offHand  = player.getInventory().getItemInOffHand();
-        if (plugin.getItemManager().isWaypointPearl(mainHand)
-                || plugin.getItemManager().isWaypointPearl(offHand)) {
-            event.setCancelled(true);
-        }
-
         // GUI / invite logic only runs for the main-hand firing.
+        // COMPASS has no vanilla right-click behaviour, so no offhand cancel guard is needed.
         if (event.getHand() != EquipmentSlot.HAND) return;
+
+        Player player = event.getPlayer();
         Action action = event.getAction();
 
         // Right-click on a waypoint block (shift state irrelevant here)
@@ -64,9 +53,9 @@ public class WaypointInteractListener implements Listener {
             }
         }
 
-        // Right-click air or block with Waypoint Compass (or old tagged Ender Pearl)
+        // Right-click air or block with Pinpoint Compass
         ItemStack item = event.getItem();
-        if (item == null || !plugin.getItemManager().isWaypointPearl(item)) return;
+        if (item == null || !plugin.getItemManager().isWaypointCompass(item)) return;
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
 
         event.setCancelled(true);
@@ -91,7 +80,7 @@ public class WaypointInteractListener implements Listener {
             return;
         }
 
-        // Normal right-click: open hub GUI (compass path — full countdown applies)
+        // Normal right-click: open hub GUI (full countdown applies)
         plugin.getGuiManager().openHubGui(player, null, false);
     }
 
@@ -103,7 +92,7 @@ public class WaypointInteractListener implements Listener {
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
 
-        if (!plugin.getItemManager().isWaypointPearl(item)) return;
+        if (!plugin.getItemManager().isWaypointCompass(item)) return;
         event.setCancelled(true);
 
         if (!player.hasPermission("waypoint.use")) {

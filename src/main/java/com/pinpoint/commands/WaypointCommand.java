@@ -138,9 +138,9 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                             + "x §bPinpoint Block§a.");
                 }
             }
-            case "compass", "pearl" -> {
+            case "compass" -> {
                 int amount = parseAmount(args, 3, 1);
-                plugin.getItemManager().giveWaypointPearls(target, amount);
+                plugin.getItemManager().giveWaypointCompasses(target, amount);
                 sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
                         + "x §dPinpoint Compass§a to §b" + target.getName() + "§a.");
                 if (!sender.equals(target)) {
@@ -149,7 +149,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                 }
             }
             default -> sender.sendMessage(plugin.msg("prefix")
-                    + "§cUnknown type §e" + args[2] + "§c. Use §ewaypoint§c or §ecompass§c.");
+                    + "§cUnknown type. Use §ewaypoint §cor §ecompass§c.");
         }
     }
 

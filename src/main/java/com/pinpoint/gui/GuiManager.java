@@ -261,7 +261,7 @@ public class GuiManager implements Listener {
                     player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
                 }
                 closeGui(player);
-                plugin.getItemManager().giveWaypointPearl(player);
+                plugin.getItemManager().giveWaypointCompass(player);
             });
 
             inv.setItem(15, makeItem(Material.NAME_TAG, "Rename Pinpoint",

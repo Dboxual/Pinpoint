@@ -40,7 +40,7 @@ PinpointPlugin             — main class, wires all managers together
 
 **Block-based waypoints:** The placed Lodestone block IS the waypoint. `WaypointManager` maintains a `Map<String, UUID> locationIndex` keyed by `"world,x,y,z"` strings for O(1) block-to-waypoint lookups. The index is populated on load and kept in sync on create/delete.
 
-**Pinpoint Compass:** A PDC-tagged Compass that gives access to all accessible waypoints. Right-click air/block → Hub GUI. Right-click player → `openInviteSelectGui` → waypoint selection → invite sent. The PDC key is still `waypoint_pearl` for backwards compatibility — old ENDER_PEARL tagged items with that key are still recognised by `isWaypointPearl()`.
+**Pinpoint Compass:** A PDC-tagged Compass (`Material.COMPASS`) that gives access to all accessible waypoints. Right-click air/block → Hub GUI. Right-click player → `openInviteSelectGui` → waypoint selection → invite sent. The PDC key string is `waypoint_pearl` (unchanged from when the item was an Ender Pearl); the Java field is now `KEY_WAYPOINT_COMPASS`. `isWaypointCompass()` requires both the PDC tag AND `Material.COMPASS` — old tagged Ender Pearl items are no longer recognised.
 
 **Pending-input pattern:** Any chat input flow (naming, fee, rename) stores state in `WaypointManager` maps keyed by player UUID. `ChatInputListener.onChat` checks each map in priority order (rename → naming → fee). Each flow has a companion timeout task whose ID is stored so it can be cancelled early. Naming cancel/timeout also restores the physical block and refunds the item.
 
