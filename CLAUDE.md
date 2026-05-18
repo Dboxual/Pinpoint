@@ -33,14 +33,14 @@ PinpointPlugin             — main class, wires all managers together
   ChatInputListener        — AsyncPlayerChatEvent handler for naming, fee, rename flows
   BlockPlaceListener       — waypoint block placement → starts naming flow
   BlockBreakListener       — protects waypoint blocks; authorized break deletes waypoint
-  WaypointInteractListener — block right-click (open GUI) + pearl right-click (open hub / invite)
+  WaypointInteractListener — block right-click (open GUI) + compass right-click (open hub / invite)
   TeleportCancelListener   — cancels pending teleports on move / damage / item-switch / logout
   WaypointCommand          — /waypoint subcommands + tab completion
 ```
 
 **Block-based waypoints:** The placed Lodestone block IS the waypoint. `WaypointManager` maintains a `Map<String, UUID> locationIndex` keyed by `"world,x,y,z"` strings for O(1) block-to-waypoint lookups. The index is populated on load and kept in sync on create/delete.
 
-**Waypoint Pearl:** A PDC-tagged Ender Pearl that gives access to all accessible waypoints. Right-click air/block → Hub GUI. Right-click player → `openInviteSelectGui` → waypoint selection → invite sent.
+**Pinpoint Compass:** A PDC-tagged Compass that gives access to all accessible waypoints. Right-click air/block → Hub GUI. Right-click player → `openInviteSelectGui` → waypoint selection → invite sent. The PDC key is still `waypoint_pearl` for backwards compatibility — old ENDER_PEARL tagged items with that key are still recognised by `isWaypointPearl()`.
 
 **Pending-input pattern:** Any chat input flow (naming, fee, rename) stores state in `WaypointManager` maps keyed by player UUID. `ChatInputListener.onChat` checks each map in priority order (rename → naming → fee). Each flow has a companion timeout task whose ID is stored so it can be cancelled early. Naming cancel/timeout also restores the physical block and refunds the item.
 
@@ -50,28 +50,15 @@ PinpointPlugin             — main class, wires all managers together
 
 ## Build rules
 
-Gradle is present in the repo but **do not use it** — Java 25 is incompatible with Gradle 8.x. All builds go through `build.sh`.
+Build with Gradle (Gradle 8.x, Java 21):
 
 ```bash
-bash build.sh
+bash gradlew jar
 ```
 
-The script:
-1. Wipes and recreates `build/classes/`
-2. Collects all `.java` sources via `find`
-3. Compiles with `javac --release 21` against jars in `libs/`
-4. Copies `plugin.yml` and `config.yml` into the class output
-5. Packages everything into `build/WaypointSystem-<version>.jar`
+The compiled jar is placed in `build/libs/Pinpoint-<version>.jar`.
 
-Required jars in `libs/` (already present):
-- `paper-api.jar`
-- `vault-api.jar`
-- `adventure-api.jar`, `adventure-key.jar`, `examination-api.jar`
-- `bungeecord-chat.jar`
-- `guava.jar`
-- `jetbrains-annotations.jar`
-
-The `build.gradle.kts` exists for IDE dependency resolution only — it is not used for compilation.
+`build.sh` exists but requires Windows-compatible classpath separators; prefer Gradle.
 
 ---
 
@@ -80,8 +67,8 @@ The `build.gradle.kts` exists for IDE dependency resolution only — it is not u
 Before ending any work session:
 
 1. **Increment the version** in `plugin.yml`, `build.sh` (jar filename), and `build.gradle.kts`
-2. **Run `bash build.sh`** and confirm the jar is produced with no errors
-3. **Verify the jar exists** at `build/WaypointSystem-<version>.jar`
+2. **Run `bash gradlew jar`** and confirm the jar is produced with no errors
+3. **Verify the jar exists** at `build/libs/Pinpoint-<version>.jar`
 4. **Update `CHANGELOG.md`** with a dated entry summarising what changed
 5. **Commit** all modified source files and the new jar together
 

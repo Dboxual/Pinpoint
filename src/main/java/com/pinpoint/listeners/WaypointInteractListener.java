@@ -28,9 +28,11 @@ public class WaypointInteractListener implements Listener {
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
 
-        // Prevent vanilla ender pearl throw for Pinpoint pearls in either hand.
-        // PlayerInteractEvent fires separately for HAND and OFF_HAND; we must cancel
-        // both firings, otherwise the OFF_HAND event reaches vanilla and launches the pearl.
+        // Cancel vanilla item behaviour for tagged Pinpoint items in either hand.
+        // Old Ender-Pearl tagged items still need this to prevent throwing.
+        // New Compass items have no vanilla right-click action but we cancel anyway for consistency.
+        // PlayerInteractEvent fires separately for HAND and OFF_HAND; cancelling both firings
+        // prevents the OFF_HAND event from reaching vanilla behaviour.
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         ItemStack offHand  = player.getInventory().getItemInOffHand();
         if (plugin.getItemManager().isWaypointPearl(mainHand)
@@ -62,7 +64,7 @@ public class WaypointInteractListener implements Listener {
             }
         }
 
-        // Right-click air or block with Waypoint Pearl
+        // Right-click air or block with Waypoint Compass (or old tagged Ender Pearl)
         ItemStack item = event.getItem();
         if (item == null || !plugin.getItemManager().isWaypointPearl(item)) return;
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
@@ -89,7 +91,7 @@ public class WaypointInteractListener implements Listener {
             return;
         }
 
-        // Normal right-click: open hub GUI (pearl path — full countdown applies)
+        // Normal right-click: open hub GUI (compass path — full countdown applies)
         plugin.getGuiManager().openHubGui(player, null, false);
     }
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.3.7 — 2026-05-18
+### Changed
+- **Pinpoint navigation item is now a Compass instead of an Ender Pearl** — `createWaypointPearl()` now returns `Material.COMPASS` with display name "Pinpoint Compass". The crafting recipe changes accordingly: 4× Compass (corners) + 1× Ender Eye (center). The internal PDC key (`waypoint_pearl`) is intentionally unchanged so existing tagged Ender Pearl items remain fully functional — they will still be recognised by `isWaypointPearl()` and work identically to the new compass item, just with the old material.
+- **All player-facing text updated from "Pearl" to "Compass"** — GUI button ("Get Pinpoint Pearl" → "Get Pinpoint Compass"), `/waypoint give` command (`pearl` → `compass`; `pearl` kept as a silent alias), usage output, party messages ("Shift+Pearl" → "Shift+Compass"), README, CLAUDE.md.
+- **Compass offhand safety** — COMPASS has no vanilla right-click behaviour, so throwing is not possible. The existing cancel-in-both-hands guard is retained to cover old tagged Ender Pearl items in the offhand.
+
+### Fixed
+- **Breaking a named Pinpoint no longer drops a vanilla Lodestone** — previously, breaking a fully-configured waypoint block would let the Lodestone drop naturally. Now `BlockBreakListener` suppresses the drop and returns the tagged Pinpoint block item to the owner (or drops it at the block location if inventory is full), consistent with the setup-cancel path that already did this.
+
+---
+
 ## v1.3.6 — 2026-05-18
 ### Fixed
 - **Pinpoint pearl in offhand no longer throws as a vanilla ender pearl** — `PlayerInteractEvent` fires twice (once for `HAND`, once for `OFF_HAND`). The previous handler returned early for `OFF_HAND` events before cancelling, allowing the vanilla ender pearl throw to proceed when the Pinpoint pearl was in the offhand. The fix checks both hands for a Pinpoint pearl PDC tag and cancels the event unconditionally before the hand guard, then keeps the hand guard so GUI and invite logic only runs for the main-hand firing.

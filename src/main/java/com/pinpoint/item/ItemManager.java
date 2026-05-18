@@ -21,7 +21,8 @@ public class ItemManager {
 
     // Waypoint block item — PDC tag for the Lodestone item in inventory
     public final NamespacedKey KEY_WAYPOINT_BLOCK;
-    // Waypoint Pearl — PDC tag for the Ender Pearl navigation item
+    // Waypoint Compass — PDC tag for the navigation compass item.
+    // Key name kept as "waypoint_pearl" so old tagged Ender Pearl items are still recognised.
     public final NamespacedKey KEY_WAYPOINT_PEARL;
 
     public ItemManager(PinpointPlugin plugin) {
@@ -39,15 +40,15 @@ public class ItemManager {
         blockRecipe.setIngredient('E', Material.ENDER_EYE);
         plugin.getServer().addRecipe(blockRecipe);
 
-        // Waypoint Pearl: 4x Ender Pearl (corners) + 1x Ender Eye (center)
+        // Waypoint Compass: 4x Compass (corners) + 1x Ender Eye (center)
         NamespacedKey pearlKey = new NamespacedKey(plugin, "waypoint_pearl_recipe");
         ShapedRecipe pearlRecipe = new ShapedRecipe(pearlKey, createWaypointPearl());
-        pearlRecipe.shape("P P", " E ", "P P");
-        pearlRecipe.setIngredient('P', Material.ENDER_PEARL);
+        pearlRecipe.shape("C C", " E ", "C C");
+        pearlRecipe.setIngredient('C', Material.COMPASS);
         pearlRecipe.setIngredient('E', Material.ENDER_EYE);
         plugin.getServer().addRecipe(pearlRecipe);
 
-        plugin.getLogger().info("Crafting recipes registered (waypoint block + waypoint pearl).");
+        plugin.getLogger().info("Crafting recipes registered (waypoint block + waypoint compass).");
     }
 
     // --- Waypoint Block Item ---
@@ -70,12 +71,12 @@ public class ItemManager {
         return item.getItemMeta().getPersistentDataContainer().has(KEY_WAYPOINT_BLOCK, PersistentDataType.BYTE);
     }
 
-    // --- Waypoint Pearl ---
+    // --- Waypoint Compass ---
 
     public ItemStack createWaypointPearl() {
-        ItemStack item = new ItemStack(Material.ENDER_PEARL);
+        ItemStack item = new ItemStack(Material.COMPASS);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(text("Pinpoint Pearl", NamedTextColor.LIGHT_PURPLE));
+        meta.displayName(text("Pinpoint Compass", NamedTextColor.LIGHT_PURPLE));
         meta.lore(List.of(
                 text("Right-click: open accessible Pinpoints", NamedTextColor.GRAY),
                 text("Right-click player: invite to a Pinpoint", NamedTextColor.DARK_GRAY),

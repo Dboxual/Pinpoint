@@ -58,9 +58,17 @@ public class BlockBreakListener implements Listener {
             return;
         }
 
-        // Owner or admin — remove waypoint from storage; block drops normally
+        // Owner or admin — remove waypoint, suppress vanilla Lodestone drop, refund tagged item
         plugin.getHologramManager().removeHologram(wp.getId());
         plugin.getWaypointManager().deleteWaypoint(wp.getId());
+
+        event.setDropItems(false);
+        ItemStack refund = plugin.getItemManager().createWaypointBlockItem();
+        Map<Integer, ItemStack> leftover = player.getInventory().addItem(refund);
+        if (!leftover.isEmpty()) {
+            brokenLoc.getWorld().dropItemNaturally(brokenLoc, leftover.get(0));
+        }
+
         player.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("waypoint-deleted"), wp.getName()));
     }

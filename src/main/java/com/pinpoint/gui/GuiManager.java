@@ -253,8 +253,8 @@ public class GuiManager implements Listener {
                 });
             }
 
-            inv.setItem(14, makeItem(Material.ENDER_PEARL, "Get Pinpoint Pearl",
-                    List.of(colorLine("Gives you a Pinpoint Pearl", NamedTextColor.YELLOW),
+            inv.setItem(14, makeItem(Material.COMPASS, "Get Pinpoint Compass",
+                    List.of(colorLine("Gives you a Pinpoint Compass", NamedTextColor.YELLOW),
                             colorLine("Use it to access all your Pinpoints", NamedTextColor.GRAY))));
             handlers.put(14, () -> {
                 if (!wp.isOwner(player.getUniqueId())) {

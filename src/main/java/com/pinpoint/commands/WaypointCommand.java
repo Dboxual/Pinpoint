@@ -107,7 +107,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
     }
 
     // /waypoint give <player> waypoint [amount]
-    // /waypoint give <player> pearl [amount]
+    // /waypoint give <player> compass [amount]   (alias: pearl)
     private void handleGive(CommandSender sender, String[] args) {
         if (!sender.hasPermission("waypoint.give")) {
             sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
@@ -115,7 +115,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length < 3) {
             sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> waypoint [amount]");
-            sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> pearl [amount]");
+            sender.sendMessage(plugin.msg("prefix") + "§cUsage: /waypoint give <player> compass [amount]");
             return;
         }
 
@@ -138,18 +138,18 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                             + "x §bPinpoint Block§a.");
                 }
             }
-            case "pearl" -> {
+            case "compass", "pearl" -> {
                 int amount = parseAmount(args, 3, 1);
                 plugin.getItemManager().giveWaypointPearls(target, amount);
                 sender.sendMessage(plugin.msg("prefix") + "§aGave §e" + amount
-                        + "x §dPinpoint Pearl§a to §b" + target.getName() + "§a.");
+                        + "x §dPinpoint Compass§a to §b" + target.getName() + "§a.");
                 if (!sender.equals(target)) {
                     target.sendMessage(plugin.msg("prefix") + "§aYou received §e" + amount
-                            + "x §dPinpoint Pearl§a.");
+                            + "x §dPinpoint Compass§a.");
                 }
             }
             default -> sender.sendMessage(plugin.msg("prefix")
-                    + "§cUnknown type §e" + args[2] + "§c. Use §ewaypoint§c or §epearl§c.");
+                    + "§cUnknown type §e" + args[2] + "§c. Use §ewaypoint§c or §ecompass§c.");
         }
     }
 
@@ -219,7 +219,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
                     .toList();
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
-            return filter(List.of("waypoint", "pearl"), args[2]);
+            return filter(List.of("waypoint", "compass"), args[2]);
         }
         return List.of();
     }
@@ -234,7 +234,7 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         if (sender.hasPermission("waypoint.reload"))
             sender.sendMessage("  §b/wp reload          §7- Reload config and data");
         if (sender.hasPermission("waypoint.give"))
-            sender.sendMessage("  §b/wp give §e<player> waypoint§7|§epearl §7- Give items");
+            sender.sendMessage("  §b/wp give §e<player> waypoint§7|§ecompass §7- Give items");
     }
 
     private int parseAmount(String[] args, int index, int defaultVal) {

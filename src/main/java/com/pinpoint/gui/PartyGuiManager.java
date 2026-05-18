@@ -102,7 +102,7 @@ public class PartyGuiManager {
         Party party = plugin.getPartyManager().getPartyOf(player.getUniqueId());
 
         if (party == null) {
-            player.sendMessage(plugin.msg("prefix") + "§cYou are not in a party. Shift+right-click a player with your Pinpoint Pearl to link up.");
+            player.sendMessage(plugin.msg("prefix") + "§cYou are not in a party. Shift+right-click a player with your Pinpoint Compass to link up.");
             return;
         }
 
@@ -211,7 +211,7 @@ public class PartyGuiManager {
                     .append(Component.text(traveler.getName(), NamedTextColor.AQUA))
                     .append(Component.text(" traveled to ", NamedTextColor.YELLOW))
                     .append(Component.text(wp.getName(), NamedTextColor.AQUA))
-                    .append(Component.text("  §7(Shift+Pearl to follow)", NamedTextColor.GRAY)));
+                    .append(Component.text("  §7(Shift+Compass to follow)", NamedTextColor.GRAY)));
         }
 
         int taskId = plugin.getServer().getScheduler().runTaskLater(plugin, () ->
