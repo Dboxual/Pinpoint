@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.3.10 — 2026-05-19
+### Changed — Pinpoint Compass recipe simplified
+
+Recipe changed from 4× Compass (corners) + 1× Ender Eye (center) to 1× Ender Eye (top-center) + 1× Compass (center). Easier to remember and cheaper to craft.
+
+```
+[ ] [E] [ ]
+[ ] [C] [ ]
+[ ] [ ] [ ]
+```
+
 ## v1.3.9 — 2026-05-18
 ### Fixed — Pinpoint blocks unreachable with empty hand or in WorldGuard regions
 

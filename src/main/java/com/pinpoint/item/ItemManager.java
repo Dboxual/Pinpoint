@@ -39,12 +39,12 @@ public class ItemManager {
         blockRecipe.setIngredient('E', Material.ENDER_EYE);
         plugin.getServer().addRecipe(blockRecipe);
 
-        // Pinpoint Compass: 4x Compass (corners) + 1x Ender Eye (center)
+        // Pinpoint Compass: 1x Ender Eye (top-center) + 1x Compass (center)
         NamespacedKey compassKey = new NamespacedKey(plugin, "waypoint_compass_recipe");
         ShapedRecipe compassRecipe = new ShapedRecipe(compassKey, createWaypointCompass());
-        compassRecipe.shape("C C", " E ", "C C");
-        compassRecipe.setIngredient('C', Material.COMPASS);
+        compassRecipe.shape(" E ", " C ", "   ");
         compassRecipe.setIngredient('E', Material.ENDER_EYE);
+        compassRecipe.setIngredient('C', Material.COMPASS);
         plugin.getServer().addRecipe(compassRecipe);
 
         plugin.getLogger().info("Crafting recipes registered (waypoint block + pinpoint compass).");
