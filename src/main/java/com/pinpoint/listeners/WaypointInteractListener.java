@@ -24,21 +24,39 @@ public class WaypointInteractListener implements Listener {
         this.plugin = plugin;
     }
 
+    // ignoreCancelled is intentionally false (the default) so we process the event even when
+    // a plugin such as WorldGuard has already cancelled it for a protected region.
+    // Our GUI open is custom code; it is not gated on the event's cancelled state.
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        // GUI / invite logic only runs for the main-hand firing.
-        // COMPASS has no vanilla right-click behaviour, so no offhand cancel guard is needed.
-        if (event.getHand() != EquipmentSlot.HAND) return;
-
         Player player = event.getPlayer();
         Action action = event.getAction();
 
-        // Right-click on a waypoint block (shift state irrelevant here)
+        // getHand() is documented to be nullable. It is null for some empty-hand interactions
+        // and for certain Geyser/Bedrock client packets. Store once and use null-safe comparisons.
+        EquipmentSlot hand = event.getHand();
+
+        // ── Waypoint block right-click ──────────────────────────────────────────────
+        //
+        // This path is evaluated BEFORE any hand filter so that:
+        //   • empty main hand  works (getHand() == HAND or null)
+        //   • item in main hand works (getHand() == HAND)
+        //   • offhand item present works (fires as HAND *and* OFF_HAND; handled below)
+        //   • Geyser/Bedrock works (getHand() may be null)
+        //   • WorldGuard-protected regions work (we run even if the event was cancelled)
         if (action == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null) {
             Optional<Waypoint> wpOpt = plugin.getWaypointManager()
                     .getWaypointAt(event.getClickedBlock().getLocation());
             if (wpOpt.isPresent()) {
+                // Cancel vanilla block use regardless of hand so that, for example, a compass
+                // in the offhand cannot magnetise the Lodestone via the OFF_HAND firing.
                 event.setCancelled(true);
+
+                // When the player has items in both hands, Bukkit fires the event twice —
+                // once for HAND and once for OFF_HAND. We open the GUI only on the first
+                // (HAND or null-hand) firing and ignore the duplicate OFF_HAND event.
+                if (EquipmentSlot.OFF_HAND.equals(hand)) return;
+
                 if (!player.hasPermission("waypoint.use")) {
                     player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
                     return;
@@ -53,7 +71,13 @@ public class WaypointInteractListener implements Listener {
             }
         }
 
-        // Right-click air or block with Pinpoint Compass
+        // ── Pinpoint Compass right-click (air or non-waypoint block) ───────────────
+        //
+        // Strictly main-hand only: prevents double-processing when both HAND and
+        // OFF_HAND events arrive. Null-safe: null hand is not HAND, so Geyser clients
+        // holding nothing in either hand won't accidentally trigger the compass path.
+        if (!EquipmentSlot.HAND.equals(hand)) return;
+
         ItemStack item = event.getItem();
         if (item == null || !plugin.getItemManager().isWaypointCompass(item)) return;
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;

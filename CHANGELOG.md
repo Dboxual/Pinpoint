@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.3.9 — 2026-05-18
+### Fixed — Pinpoint blocks unreachable with empty hand or in WorldGuard regions
+
+**Root cause:** The hand guard `if (event.getHand() != EquipmentSlot.HAND) return` sat at the very top of `onPlayerInteract`, before the waypoint-block path. This caused two failure modes:
+
+1. `event.getHand()` is documented nullable and returns `null` for some empty-hand interactions and for Geyser/Bedrock client packets. `null != EquipmentSlot.HAND` evaluates to `true`, so the handler returned immediately — no GUI, no cancellation.
+2. Even when `getHand()` correctly returned `HAND`, the guard was architecturally wrong: block right-clicks should work regardless of which hand or what item the player holds. Only the compass path requires a hand filter (to prevent double-firing).
+
+**Fix — `WaypointInteractListener.onPlayerInteract`:**
+
+- The waypoint block path is now evaluated **before** any hand filter.
+- Vanilla block use is cancelled for **all** hand values (prevents compass magnetisation of the Lodestone via an offhand compass).
+- GUI is opened only for the HAND-or-null-hand firing. When both HAND and OFF_HAND events arrive (player has items in both slots), the OFF_HAND duplicate is rejected via the null-safe check `EquipmentSlot.OFF_HAND.equals(hand)` — this correctly treats `null` as non-OFF_HAND rather than throwing NPE.
+- The compass path retains a strict main-hand guard using the null-safe `!EquipmentSlot.HAND.equals(hand)` — null hand does not pass this check, which is correct (you need to be deliberately holding the compass in your main hand to trigger hub navigation).
+- `EventPriority.HIGH` without `ignoreCancelled` (the default) is intentionally kept: we see WorldGuard-cancelled events and open our GUI regardless, since `openHubGui` is server-side custom code not governed by event cancellation.
+
+**Test notes:**
+1. **Empty hand at spawn (WorldGuard):** right-click Pinpoint block → hub GUI opens. WorldGuard cancels at NORMAL/HIGH; our handler at HIGH sees the cancelled event and opens GUI anyway.
+2. **Compass in main hand:** right-click Pinpoint block → hub GUI opens (compass path does not fire; block path fires first and returns).
+3. **Offhand item present:** HAND event opens GUI; OFF_HAND duplicate is cancelled-and-returned without re-opening.
+4. **WorldGuard protected region:** works because `ignoreCancelled` is false — we process even cancelled events.
+5. **Bedrock/Geyser:** null `getHand()` is handled via null-safe `.equals()` comparisons; block path opens GUI, compass path is skipped (correct, since Bedrock players don't hold specific Java items).
+
+---
+
 ## v1.3.8 — 2026-05-18
 ### Changed
 - **Ender Pearl compatibility fully removed** — `isWaypointCompass()` now requires `Material.COMPASS` in addition to the PDC tag. Old PDC-tagged Ender Pearl items no longer trigger any Pinpoint behaviour and function as normal vanilla Ender Pearls.
