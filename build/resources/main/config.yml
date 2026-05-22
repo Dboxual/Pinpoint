@@ -1,0 +1,62 @@
+settings:
+  # Default teleport fee (0 = free). Applied when a waypoint is first created.
+  default-fee: 0
+  # Radius (in blocks) to search for a safe landing spot near the waypoint.
+  safe-teleport-radius: 5
+  # Block right-click teleport delay (seconds). 0 = near-instant. Player still needs to pass fee/safe-spot checks.
+  waypoint-block-teleport-delay-seconds: 5
+  # Pearl right-click teleport delay (seconds). Player must stand still for this long before teleporting.
+  waypoint-pearl-teleport-delay-seconds: 10
+  # Seconds a player must wait between teleports after a successful one (all players).
+  teleport-cooldown-seconds: 3
+  # Maximum number of waypoints a single player may own (0 = unlimited).
+  max-waypoints-per-player: 10
+  # Seconds before a pending teleport invite expires.
+  invite-timeout: 60
+  # Seconds before a party link request expires.
+  link-request-timeout: 60
+  # Seconds party members have to click [Follow] after a Pinpoint travel notification.
+  party-travel-offer-timeout: 30
+
+holograms:
+  # Whether to display floating info above each placed waypoint block.
+  enabled: true
+  # Height above the block's Y coordinate where the bottom hologram line appears.
+  height: 2.8
+  # Include the owner's name in the hologram.
+  show-owner: true
+  # Include the fee (or "Free") in the hologram. Only shown when Vault is enabled.
+  show-fee: true
+  # Maximum distance in blocks at which a player can see a hologram (default 8).
+  view-distance: 8
+  # Hide holograms when the player has no direct line of sight to the Pinpoint block.
+  # Prevents holograms from revealing bases through walls.
+  require-line-of-sight: true
+
+messages:
+  prefix: "&8[&bPinpoints&8] &r"
+  no-permission: "&cYou don't have permission to do that."
+  waypoint-named: "&aPinpoint '&b%s&a' created!"
+  waypoint-teleported: "&aTeleported to &b%s&a."
+  fee-charged: "&aCharged &e%s&a for teleport."
+  fee-insufficient: "&cYou need &e%s&c to teleport there."
+  invite-sent: "&aInvite sent to &b%s&a."
+  invite-received: "&b%s &ahas invited you to &b%s&a. &eShift+Pearl&a to accept, or &e/wp accept&a | &e/wp deny&a."
+  invite-accepted: "&a%s accepted your invite."
+  invite-denied: "&c%s denied your invite."
+  invite-expired: "&cYour invite has expired."
+  no-pending-invite: "&cYou have no pending invite."
+  not-owner: "&cOnly the owner can do that."
+  waypoint-not-found: "&cPinpoint not found."
+  name-prompt: "&eType the Pinpoint name in chat (or &ccancel&e):"
+  name-too-long: "&cName must be 32 characters or less."
+  name-empty: "&cName cannot be empty."
+  waypoint-limit-reached: "&cYou have reached the maximum of &e%d&c Pinpoints."
+  cooldown-active: "&cPlease wait &e%ds&c before using this again."
+  waypoint-deleted: "&aPinpoint &b%s&a has been deleted."
+  waypoint-renamed: "&aPinpoint renamed to &b%s&a."
+  rename-prompt: "&eType a new name for &b%s&e (or &ccancel&e):"
+  teleport-block: "&aTeleporting..."
+  teleport-countdown: "&ePearl teleporting in &b%ds&e... don't move."
+  teleport-cancelled-moved: "&cTeleport cancelled — you moved."
+  teleport-cancelled-damaged: "&cTeleport cancelled — you took damage."
