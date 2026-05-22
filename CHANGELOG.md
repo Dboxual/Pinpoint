@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.3.11 — 2026-05-22
+### Changed — Hub GUI: sorted display, owner highlighting, category icons
+
+**Sorting**
+- Hub GUI now shows pinpoints in three groups: owned first (green), invited/private second, public third. Within each group, sorted A–Z by name.
+
+**Owner highlighting**
+- Owned pinpoints display with a green name, "Owner: You" lore, and "Category: Mine" lore instead of the generic owner/visibility lines.
+
+**Icon palette**
+- Old generic palette (Grass Block, Diamond, etc.) replaced with nine named categories:
+
+| Icon | Material |
+|---|---|
+| Home | Red Bed |
+| Base | Shield |
+| Farm | Wheat |
+| Shop | Emerald |
+| Mine | Iron Pickaxe |
+| Village | Bell |
+| Nether | Netherrack |
+| End | Ender Eye |
+| Other | Compass |
+| Default | Lodestone |
+
+- Category names shown in "Change Icon" and "Icon changed to" messages instead of raw material names.
+
+---
+
 ## v1.3.10 — 2026-05-19
 ### Changed — Pinpoint Compass recipe simplified
 

@@ -27,9 +27,16 @@ import net.kyori.adventure.text.format.TextDecoration;
 public class GuiManager implements Listener {
 
     private static final List<Material> ICON_PALETTE = List.of(
-            Material.GRASS_BLOCK, Material.DIAMOND, Material.EMERALD, Material.NETHER_STAR,
-            Material.ENDER_PEARL, Material.COMPASS, Material.CHEST, Material.OAK_DOOR,
-            Material.BEACON, Material.LODESTONE
+            Material.RED_BED,        // Home
+            Material.SHIELD,         // Base
+            Material.WHEAT,          // Farm
+            Material.EMERALD,        // Shop
+            Material.IRON_PICKAXE,   // Mine
+            Material.BELL,           // Village
+            Material.NETHERRACK,     // Nether
+            Material.ENDER_EYE,      // End
+            Material.COMPASS,        // Other
+            Material.LODESTONE       // Default
     );
 
     private final PinpointPlugin plugin;
@@ -112,8 +119,19 @@ public class GuiManager implements Listener {
     }
 
     private void renderHubGui(Player player, UUID focusedWaypointId, boolean fromBlock, int page) {
+        UUID playerUuid = player.getUniqueId();
         List<Waypoint> accessible = plugin.getWaypointManager()
-                .getAccessibleWaypoints(player.getUniqueId());
+                .getAccessibleWaypoints(playerUuid);
+
+        // Sort: owned → invited/private → public; alphabetical within each group
+        accessible.sort(Comparator
+                .comparingInt((Waypoint wp) -> {
+                    if (wp.isOwner(playerUuid))  return 0;
+                    if (!wp.isPublic())           return 1;
+                    return 2;
+                })
+                .thenComparing(wp -> wp.getName().toLowerCase()));
+
         Set<String> dupes = duplicateNames(accessible);
 
         int totalPages = Math.max(1, (int) Math.ceil((double) accessible.size() / HUB_PAGE_SIZE));
@@ -149,16 +167,23 @@ public class GuiManager implements Listener {
             Waypoint wp = accessible.get(wpIdx);
             int slot = contentSlots[i];
 
+            boolean isOwner = wp.isOwner(playerUuid);
             List<Component> lore = new ArrayList<>();
-            lore.add(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY));
-            lore.add(colorLine(wp.isPublic() ? "Public" : "Private",
-                    wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED));
+            if (isOwner) {
+                lore.add(colorLine("Owner: You", NamedTextColor.GREEN));
+                lore.add(colorLine("Category: Mine", NamedTextColor.AQUA));
+            } else {
+                lore.add(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY));
+                lore.add(colorLine(wp.isPublic() ? "Public" : "Private",
+                        wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED));
+            }
             lore.add(wp.getFee() > 0 && plugin.getEconomyManager().isEnabled()
                     ? colorLine("Fee: " + plugin.getEconomyManager().format(wp.getFee()), NamedTextColor.GOLD)
                     : colorLine("Free", NamedTextColor.GREEN));
             lore.add(colorLine("Click to open", NamedTextColor.YELLOW));
 
-            inv.setItem(slot, makeItem(wp.getIconMaterial(), label(wp, dupes), lore));
+            NamedTextColor nameColor = isOwner ? NamedTextColor.GREEN : NamedTextColor.WHITE;
+            inv.setItem(slot, makeItem(wp.getIconMaterial(), label(wp, dupes), lore, nameColor));
             final Waypoint finalWp = wp;
             handlers.put(slot, () -> handleWaypointClick(player, finalWp, fromBlock));
         }
@@ -289,7 +314,7 @@ public class GuiManager implements Listener {
 
             // Change Icon — slot 20, overrides bottom border glass
             inv.setItem(20, makeItem(wp.getIconMaterial(), "Change Icon",
-                    List.of(colorLine("Current: " + friendlyName(wp.getIconMaterial()), NamedTextColor.GRAY),
+                    List.of(colorLine("Current: " + categoryName(wp.getIconMaterial()), NamedTextColor.GRAY),
                             colorLine("Click to choose a different icon", NamedTextColor.YELLOW))));
             handlers.put(20, () -> {
                 if (!wp.isOwner(player.getUniqueId())) {
@@ -527,7 +552,7 @@ public class GuiManager implements Listener {
             } else {
                 lore.add(colorLine("Click to select", NamedTextColor.YELLOW));
             }
-            inv.setItem(slot, makeItem(mat, friendlyName(mat), lore));
+            inv.setItem(slot, makeItem(mat, categoryName(mat), lore));
             final Material finalMat = mat;
             handlers.put(slot, () -> {
                 if (!wp.isOwner(player.getUniqueId())) {
@@ -535,7 +560,7 @@ public class GuiManager implements Listener {
                 }
                 wp.setIconMaterial(finalMat);
                 plugin.getWaypointManager().saveWaypoint(wp);
-                player.sendMessage(plugin.msg("prefix") + "§aIcon changed to §b" + friendlyName(finalMat) + "§a.");
+                player.sendMessage(plugin.msg("prefix") + "§aIcon changed to §b" + categoryName(finalMat) + "§a.");
                 openManageGui(player, wp, fromBlock);
             });
         }
@@ -620,9 +645,13 @@ public class GuiManager implements Listener {
     }
 
     private ItemStack makeItem(Material mat, String name, List<Component> lore) {
+        return makeItem(mat, name, lore, NamedTextColor.WHITE);
+    }
+
+    private ItemStack makeItem(Material mat, String name, List<Component> lore, NamedTextColor color) {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(name).color(NamedTextColor.WHITE)
+        meta.displayName(Component.text(name).color(color)
                 .decoration(TextDecoration.ITALIC, false));
         if (!lore.isEmpty()) meta.lore(lore);
         item.setItemMeta(meta);
@@ -641,5 +670,21 @@ public class GuiManager implements Listener {
             sb.append(word.substring(1).toLowerCase());
         }
         return sb.toString();
+    }
+
+    private String categoryName(Material mat) {
+        return switch (mat) {
+            case RED_BED      -> "Home";
+            case SHIELD       -> "Base";
+            case WHEAT        -> "Farm";
+            case EMERALD      -> "Shop";
+            case IRON_PICKAXE -> "Mine";
+            case BELL         -> "Village";
+            case NETHERRACK   -> "Nether";
+            case ENDER_EYE    -> "End";
+            case COMPASS      -> "Other";
+            case LODESTONE    -> "Default";
+            default           -> friendlyName(mat);
+        };
     }
 }
