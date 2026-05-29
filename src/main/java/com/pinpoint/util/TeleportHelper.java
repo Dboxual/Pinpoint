@@ -222,6 +222,11 @@ public class TeleportHelper {
             return;
         }
 
+        if (wp.hasTeleportYaw()) {
+            safe.setYaw(wp.getTeleportYaw());
+            safe.setPitch(0f);
+        }
+
         player.teleport(safe);
         player.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("waypoint-teleported"), wp.getName()));

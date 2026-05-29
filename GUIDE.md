@@ -1,125 +1,119 @@
 # Pinpoint
 
-A craftable waypoint and teleportation system. Set permanent locations around the world, share them with friends, and travel between them with ease.
+A craftable waypoint and teleportation system. Place blocks to mark your locations and travel between them instantly.
 
 ---
 
-## Features
+## The Two Items
 
-- Craft placeable **Pinpoint Blocks** to mark locations
-- Craft a **Pinpoint Pearl** for quick access to all your Pinpoints
-- Set Pinpoints as **public** or **private**
-- **Invite specific players** to access your private Pinpoints
-- Charge a **fee** for others to teleport to your Pinpoint
-- **Party system** — link up with a friend and travel together
-- **Full pagination** in the hub — scroll through any number of Pinpoints
+**Pinpoint Block** — place it anywhere to mark that spot as a Pinpoint.
+
+**Pinpoint Compass** — opens your list of accessible Pinpoints so you can travel.
 
 ---
 
-## How It Works
-
-### Placing a Pinpoint
-
-1. Craft a **Pinpoint Block** (see recipe below)
-2. Place it anywhere in the world
-3. Type a **name** in chat when prompted — that's it
-
-The block is now your Pinpoint. Right-click it to manage or teleport.
-
-### Traveling
-
-- Craft a **Pinpoint Pearl** and right-click to open the hub
-- Right-click any Pinpoint block you have access to
-- Select a destination and stand still while the countdown runs
-
-> Movement or taking damage cancels the teleport.
-
-### Hub Navigation
-
-The hub shows all Pinpoints you can access — yours, public ones, and any you've been invited to.
-
-Use the **green pane** to go to the next page and the **red pane** to go back.
-
----
-
-## Recipes
+## Crafting
 
 **Pinpoint Block**
 ```
 Q Q Q
-Q E Q     Q = Quartz  |  E = Ender Eye
+Q E Q     Q = Quartz  |  E = Eye of Ender
 Q Q Q
 ```
 
-**Pinpoint Pearl**
+**Pinpoint Compass**
 ```
-P   P
-  E       P = Ender Pearl  |  E = Ender Eye
-P   P
+. E .
+. C .     E = Eye of Ender  |  C = Compass
+. . .
 ```
+
+---
+
+## Creating a Pinpoint
+
+1. Craft a **Pinpoint Block**
+2. Place it anywhere
+3. Type a **name** in chat when prompted
+
+That's it — the block is now your Pinpoint. Right-click it to manage it or teleport to it.
+
+---
+
+## Traveling
+
+**Option 1:** Right-click your **Pinpoint Compass** to open the hub, then click any destination.
+
+**Option 2:** Right-click any Pinpoint block you have access to.
+
+After selecting a destination, stand still while the countdown runs. Moving or taking damage cancels it.
 
 ---
 
 ## Managing Your Pinpoint
 
-Right-click your Pinpoint block (or click the compass icon in the hub) to open the manage menu.
-
-From there you can:
+Right-click your Pinpoint block (or click the compass icon in the hub) to open the manage menu. From there:
 
 - **Teleport** to it
-- **Toggle** public/private visibility
-- **Set a fee** (players pay to teleport there; you receive the money)
-- **Invite players** by name
+- **Toggle public/private** — public Pinpoints appear for everyone
+- **Set a fee** — players pay to teleport there, you receive the money
+- **Invite players** by name (for private Pinpoints)
 - **Rename** it
-- **Change its icon** in the hub
+- **Change its icon**
 - **Delete** it
+
+---
+
+## Public vs Private
+
+| Type | Who can see it |
+|---|---|
+| Public | Everyone on the server |
+| Private | Only you and players you've invited |
+
+To invite someone: open the Pinpoint manage menu and type their name.
+
+---
+
+## Fees
+
+If you set a fee on your Pinpoint, other players pay that amount when they teleport there. The money goes directly to you, even if you're offline.
+
+Fee of 0 = free for anyone (if the Pinpoint is public).
 
 ---
 
 ## Party System
 
-Link up with a friend using your **Pinpoint Pearl**:
+Link up with a friend so you can travel together.
 
-1. Hold the Pearl in your main hand
-2. **Shift+right-click** a player to send them a link request
-3. They accept in the pop-up
+1. Hold your **Pinpoint Compass** in your main hand
+2. **Shift+right-click** another player to send them a link request
+3. They accept in the pop-up (or type `/party accept`)
 
-Once linked, when you teleport, your party members get a notification and can follow with one click.
+Once linked, when you teleport to a Pinpoint your party members get a notification and can **follow with one click**.
 
-To manage your party: `/party`
+To leave your party: `/party leave`
 
 ---
 
 ## Commands
 
-| Command | Description |
+| Command | What it does |
 |---|---|
-| `/wp` or `/wp menu` | Open the Pinpoint hub |
+| `/wp` | Open your Pinpoint hub |
 | `/wp list` | List all Pinpoints you can access |
 | `/wp accept` | Accept a teleport invite |
 | `/wp deny` | Deny a teleport invite |
 | `/party` | Open party management |
-| `/party leave` | Leave your current party |
-| `/party follow` | Follow your party's latest travel |
+| `/party leave` | Leave your party |
+| `/party follow` | Follow your party's last travel |
 
 ---
 
 ## Tips
 
-- **Free Pinpoints** with a fee of 0 are accessible to anyone (if public)
-- Pinpoints **remember their state** — they persist through server restarts
 - You can have **multiple Pinpoints** in different worlds
-- **Private Pinpoints** only show to you and players you invite
-- The hub page **remembers where you left off** when you go into the manage menu and come back
-
----
-
-## Changelog Summary
-
-**v1.2.8** — Hub now supports unlimited Pinpoints with full pagination. All in-game text renamed from "waypoint" to "Pinpoint."
-
-**v1.2.7** — Shift+Pearl now accepts teleport invites immediately without opening a GUI (better Bedrock support).
-
-**v1.2.6** — Invite Players GUI rebuilt. Teleport fees now correctly pay the Pinpoint owner.
-
-**v1.2.5 and earlier** — Core system: craftable blocks/pearls, public/private visibility, fees, party linking, party travel offers, hologram display above blocks.
+- Pinpoints **survive server restarts** — they're permanent
+- The hub remembers your page when you go into a manage menu and come back
+- Bedrock players: all actions work through GUIs and right-clicks — no chat commands needed

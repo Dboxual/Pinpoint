@@ -21,6 +21,8 @@ public class Waypoint {
     private final Set<UUID> invitedPlayers = new HashSet<>();
     private final Set<UUID> linkedRecallOrbs = new HashSet<>();
     private String iconMaterial = "LODESTONE";
+    // Owner-configured teleport facing. Float.NaN = not set (uses safe-spot default).
+    private float teleportYaw = Float.NaN;
 
     public Waypoint(UUID id, String name, UUID ownerUuid, String ownerName,
                     Location location, boolean isPublic, double fee) {
@@ -87,4 +89,8 @@ public class Waypoint {
 
     public void setIconMaterial(Material mat) { this.iconMaterial = mat.name(); }
     public String getIconMaterialName() { return iconMaterial; }
+
+    public boolean hasTeleportYaw() { return !Float.isNaN(teleportYaw); }
+    public float getTeleportYaw()   { return teleportYaw; }
+    public void setTeleportYaw(float yaw) { this.teleportYaw = yaw; }
 }

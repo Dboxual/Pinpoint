@@ -322,6 +322,32 @@ public class GuiManager implements Listener {
                 }
                 openIconSelectGui(player, wp, fromBlock);
             });
+
+            // Set Facing — slot 21, overrides bottom border glass
+            List<Component> facingLore = new ArrayList<>();
+            if (wp.hasTeleportYaw()) {
+                facingLore.add(colorLine("Current: " + yawToDirection(wp.getTeleportYaw()), NamedTextColor.AQUA));
+            } else {
+                facingLore.add(colorLine("Not set — players spawn facing", NamedTextColor.GRAY));
+                facingLore.add(colorLine("the Pinpoint's placed direction", NamedTextColor.GRAY));
+            }
+            facingLore.add(colorLine("Click to save your current", NamedTextColor.YELLOW));
+            facingLore.add(colorLine("facing as the teleport direction", NamedTextColor.YELLOW));
+            String facingTitle = wp.hasTeleportYaw()
+                    ? "Facing: " + yawToDirection(wp.getTeleportYaw())
+                    : "Set Facing Direction";
+            inv.setItem(21, makeItem(Material.RECOVERY_COMPASS, facingTitle, facingLore));
+            handlers.put(21, () -> {
+                if (!wp.isOwner(player.getUniqueId())) {
+                    player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                }
+                float yaw = player.getLocation().getYaw();
+                wp.setTeleportYaw(yaw);
+                plugin.getWaypointManager().saveWaypoint(wp);
+                player.sendActionBar(Component.text("Teleport facing set to " + yawToDirection(yaw) + ".")
+                        .color(NamedTextColor.GREEN));
+                openManageGui(player, wp, fromBlock);
+            });
         }
 
         inv.setItem(22, makeItem(Material.ARROW, "Back", List.of()));
@@ -670,6 +696,18 @@ public class GuiManager implements Listener {
             sb.append(word.substring(1).toLowerCase());
         }
         return sb.toString();
+    }
+
+    private static String yawToDirection(float yaw) {
+        yaw = ((yaw % 360) + 360) % 360;
+        if (yaw < 22.5f || yaw >= 337.5f) return "South";
+        if (yaw < 67.5f)                  return "Southwest";
+        if (yaw < 112.5f)                 return "West";
+        if (yaw < 157.5f)                 return "Northwest";
+        if (yaw < 202.5f)                 return "North";
+        if (yaw < 247.5f)                 return "Northeast";
+        if (yaw < 292.5f)                 return "East";
+        return "Southeast";
     }
 
     private String categoryName(Material mat) {

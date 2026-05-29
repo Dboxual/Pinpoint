@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.3.12 — 2026-05-25
+### Added — Owner-configurable teleport facing direction
+
+Pinpoint owners can now set the direction players face when teleporting to their Pinpoint.
+
+- New **"Set Facing Direction"** button (Recovery Compass) in the owner Manage GUI (slot next to Change Icon).
+- Clicking saves the owner's current horizontal facing as the Pinpoint's teleport direction.
+- Action bar confirms the saved direction (e.g. "Teleport facing set to North.").
+- Button label updates to show the current configured direction (e.g. "Facing: North").
+- All teleporting players — including via pearl, block, party follow, and invite-travel — land facing that direction with a level pitch.
+- **Backward compatible:** existing Pinpoints without a saved facing continue to behave exactly as before (players face the direction stored at block-placement time).
+- Direction is persisted to `waypoints.yml` as `teleport-yaw`. Absent key = not configured.
+
+---
+
 ## v1.3.11 — 2026-05-22
 ### Changed — Hub GUI: sorted display, owner highlighting, category icons
 

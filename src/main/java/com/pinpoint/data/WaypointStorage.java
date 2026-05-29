@@ -72,6 +72,10 @@ public class WaypointStorage {
                 org.bukkit.Material iconMat = org.bukkit.Material.matchMaterial(iconStr);
                 if (iconMat != null) wp.setIconMaterial(iconMat);
 
+                if (data.contains(path + "teleport-yaw")) {
+                    wp.setTeleportYaw((float) data.getDouble(path + "teleport-yaw"));
+                }
+
                 List<String> invited = data.getStringList(path + "invited");
                 for (String s : invited) {
                     try { wp.addInvite(UUID.fromString(s)); } catch (Exception ignored) {}
@@ -104,6 +108,7 @@ public class WaypointStorage {
         data.set(path + "public", wp.isPublic());
         data.set(path + "fee", wp.getFee());
         data.set(path + "icon", wp.getIconMaterialName());
+        data.set(path + "teleport-yaw", wp.hasTeleportYaw() ? (double) wp.getTeleportYaw() : null);
 
         List<String> invited = new ArrayList<>();
         wp.getInvitedPlayers().forEach(u -> invited.add(u.toString()));
