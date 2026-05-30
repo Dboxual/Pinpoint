@@ -1,0 +1,35 @@
+# Gradle cache
+.gradle/
+
+# Compiled class files and intermediates
+bin/
+build/classes/
+build/resources/
+build/reports/
+build/tmp/
+build/generated/
+build/sources.txt
+*.class
+
+# Gradle binary wrapper jar (properties file is intentionally tracked)
+gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Javac arg files
+javac.*.args
+
+# Logs
+*.log
+
+# Note: build/*.jar and build/libs/*.jar are intentionally tracked as release artifacts
+# Note: libs/*.jar dependency jars are intentionally tracked
+# Note: gradlew and gradle/wrapper/gradle-wrapper.properties are intentionally tracked
