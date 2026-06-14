@@ -11,6 +11,13 @@ build/generated/
 build/sources.txt
 *.class
 
+# Old release jars — only the current release jar is tracked (in build/libs/)
+build/libs/Pinpoint-1.3.*.jar
+
+# Dependency jars — managed by Gradle; use ./gradlew build to compile
+# If using build.sh instead, download these manually (see build.sh classpath)
+libs/*.jar
+
 # Gradle binary wrapper jar (properties file is intentionally tracked)
 gradle/wrapper/gradle-wrapper.jar
 
@@ -30,6 +37,10 @@ javac.*.args
 # Logs
 *.log
 
-# Note: build/*.jar and build/libs/*.jar are intentionally tracked as release artifacts
-# Note: libs/*.jar dependency jars are intentionally tracked
+# General build output
+target/
+out/
+cache/
+
+# Note: build/libs/Pinpoint-<current>.jar is intentionally tracked as a release artifact
 # Note: gradlew and gradle/wrapper/gradle-wrapper.properties are intentionally tracked
