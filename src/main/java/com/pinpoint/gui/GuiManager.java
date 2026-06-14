@@ -3,9 +3,11 @@ package com.pinpoint.gui;
 import com.pinpoint.PinpointPlugin;
 import com.pinpoint.data.Waypoint;
 import com.pinpoint.data.WaypointManager;
+import com.pinpoint.data.WaypointType;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -14,17 +16,21 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.*;
 import java.util.List;
-
-import org.bukkit.inventory.meta.SkullMeta;
+import java.util.stream.Collectors;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 public class GuiManager implements Listener {
+
+    public enum Category { OWNED, INVITED, PUBLIC, PLAYERS, LANDMARKS }
+
+    private static final int PAGE_SIZE = 28; // 4 content rows × 7 columns
 
     private static final List<Material> ICON_PALETTE = List.of(
             Material.RED_BED,        // Home
@@ -40,17 +46,20 @@ public class GuiManager implements Listener {
     );
 
     private final PinpointPlugin plugin;
-    private final Map<UUID, Map<Integer, Runnable>> openGuis = new HashMap<>();
-    private final Map<UUID, Inventory> playerInventories = new HashMap<>();
-    private final Map<UUID, Integer>   hubPageMap        = new HashMap<>();
-
-    private static final int HUB_PAGE_SIZE = 28; // 4 content rows × 7 columns per page
+    private final Map<UUID, Map<Integer, Runnable>> openGuis     = new HashMap<>();
+    private final Map<UUID, Inventory>              playerInventories = new HashMap<>();
+    private final Map<UUID, Category>               playerCategory    = new HashMap<>();
+    private final Map<UUID, EnumMap<Category, Integer>> categoryPages = new HashMap<>();
+    // Tracks whether the current GUI session was initiated by a physical block right-click.
+    private final Map<UUID, Boolean>                playerFromBlock   = new HashMap<>();
 
     public GuiManager(PinpointPlugin plugin) {
         this.plugin = plugin;
     }
 
-    // --- Inventory event handling ---
+    // -------------------------------------------------------------------------
+    // Inventory event handling
+    // -------------------------------------------------------------------------
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
@@ -76,6 +85,7 @@ public class GuiManager implements Listener {
         if (tracked != null && event.getInventory().equals(tracked)) {
             openGuis.remove(uuid);
             playerInventories.remove(uuid);
+            playerFromBlock.remove(uuid);
         }
     }
 
@@ -86,13 +96,14 @@ public class GuiManager implements Listener {
     }
 
     public void closeGui(Player player) {
-        hubPageMap.remove(player.getUniqueId());
         openGuis.remove(player.getUniqueId());
         playerInventories.remove(player.getUniqueId());
         player.closeInventory();
     }
 
-    // --- Disambiguation ---
+    // -------------------------------------------------------------------------
+    // Disambiguation helpers
+    // -------------------------------------------------------------------------
 
     private Set<String> duplicateNames(Collection<Waypoint> pool) {
         Set<String> seen = new HashSet<>();
@@ -111,48 +122,61 @@ public class GuiManager implements Listener {
         return wp.getName();
     }
 
-    // --- GUI builders ---
+    // -------------------------------------------------------------------------
+    // Hub entry point
+    // -------------------------------------------------------------------------
 
+    /**
+     * Primary entry point called by WaypointInteractListener and commands.
+     * Always opens the main waypoint browser — ownership does not change the initial GUI.
+     * fromBlock=true means the player right-clicked a placed block; teleport delay will be shorter.
+     */
     public void openHubGui(Player player, UUID focusedWaypointId, boolean fromBlock) {
-        hubPageMap.putIfAbsent(player.getUniqueId(), 0);
-        renderHubGui(player, focusedWaypointId, fromBlock, hubPageMap.get(player.getUniqueId()));
+        playerFromBlock.put(player.getUniqueId(), fromBlock);
+        Category cat = playerCategory.getOrDefault(player.getUniqueId(), Category.OWNED);
+        renderCategoryGui(player, cat, getCategoryPage(player.getUniqueId(), cat));
     }
 
-    private void renderHubGui(Player player, UUID focusedWaypointId, boolean fromBlock, int page) {
-        UUID playerUuid = player.getUniqueId();
-        List<Waypoint> accessible = plugin.getWaypointManager()
-                .getAccessibleWaypoints(playerUuid);
+    // -------------------------------------------------------------------------
+    // Category page state helpers
+    // -------------------------------------------------------------------------
 
-        // Sort: owned → invited/private → public; alphabetical within each group
-        accessible.sort(Comparator
-                .comparingInt((Waypoint wp) -> {
-                    if (wp.isOwner(playerUuid))  return 0;
-                    if (!wp.isPublic())           return 1;
-                    return 2;
-                })
-                .thenComparing(wp -> wp.getName().toLowerCase()));
+    private int getCategoryPage(UUID uuid, Category cat) {
+        EnumMap<Category, Integer> pages = categoryPages.get(uuid);
+        return (pages != null) ? pages.getOrDefault(cat, 0) : 0;
+    }
 
-        Set<String> dupes = duplicateNames(accessible);
+    private void setCategoryPage(UUID uuid, Category cat, int page) {
+        categoryPages.computeIfAbsent(uuid, k -> new EnumMap<>(Category.class)).put(cat, page);
+    }
 
-        int totalPages = Math.max(1, (int) Math.ceil((double) accessible.size() / HUB_PAGE_SIZE));
+    // -------------------------------------------------------------------------
+    // Category GUI — main renderer
+    // -------------------------------------------------------------------------
+
+    private void renderCategoryGui(Player player, Category category, int page) {
+        UUID uuid = player.getUniqueId();
+        playerCategory.put(uuid, category);
+
+        List<?> items = getCategoryItems(player, category);
+        int totalPages = Math.max(1, (int) Math.ceil((double) items.size() / PAGE_SIZE));
         page = Math.max(0, Math.min(page, totalPages - 1));
-        hubPageMap.put(player.getUniqueId(), page);
+        setCategoryPage(uuid, category, page);
+
+        String title = switch (category) {
+            case OWNED      -> "My Pinpoints";
+            case INVITED    -> "Invited Pinpoints";
+            case PUBLIC     -> "Public Pinpoints";
+            case PLAYERS    -> "Online Players";
+            case LANDMARKS  -> "Landmarks";
+        };
 
         Inventory inv = Bukkit.createInventory(null, 54,
-                Component.text("Pinpoint Hub").color(NamedTextColor.AQUA));
+                Component.text(title).color(NamedTextColor.AQUA));
         Map<Integer, Runnable> handlers = new HashMap<>();
 
-        // Top row and side borders for rows 0-4; bottom row filled separately
-        ItemStack glass = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ", List.of());
-        for (int i = 0; i < 9; i++) inv.setItem(i, glass);
-        for (int row = 1; row <= 4; row++) {
-            inv.setItem(row * 9, glass);
-            inv.setItem(row * 9 + 8, glass);
-        }
-        for (int i = 45; i < 54; i++) inv.setItem(i, glass);
-
-        // Content slots: rows 1-4, columns 1-7 (28 per page)
-        int[] contentSlots = new int[HUB_PAGE_SIZE];
+        // Content slots: rows 1-4, cols 1-7 = 28 slots per page
+        int[] contentSlots = new int[PAGE_SIZE];
         int idx = 0;
         for (int row = 1; row <= 4; row++) {
             for (int col = 1; col <= 7; col++) {
@@ -160,64 +184,386 @@ public class GuiManager implements Listener {
             }
         }
 
-        int start = page * HUB_PAGE_SIZE;
-        for (int i = 0; i < HUB_PAGE_SIZE; i++) {
-            int wpIdx = start + i;
-            if (wpIdx >= accessible.size()) break;
-            Waypoint wp = accessible.get(wpIdx);
-            int slot = contentSlots[i];
+        int start = page * PAGE_SIZE;
 
-            boolean isOwner = wp.isOwner(playerUuid);
-            List<Component> lore = new ArrayList<>();
-            if (isOwner) {
-                lore.add(colorLine("Owner: You", NamedTextColor.GREEN));
-                lore.add(colorLine("Category: Mine", NamedTextColor.AQUA));
-            } else {
-                lore.add(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY));
-                lore.add(colorLine(wp.isPublic() ? "Public" : "Private",
-                        wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED));
-            }
-            lore.add(wp.getFee() > 0 && plugin.getEconomyManager().isEnabled()
-                    ? colorLine("Fee: " + plugin.getEconomyManager().format(wp.getFee()), NamedTextColor.GOLD)
-                    : colorLine("Free", NamedTextColor.GREEN));
-            lore.add(colorLine("Click to open", NamedTextColor.YELLOW));
-
-            NamedTextColor nameColor = isOwner ? NamedTextColor.GREEN : NamedTextColor.WHITE;
-            inv.setItem(slot, makeItem(wp.getIconMaterial(), label(wp, dupes), lore, nameColor));
-            final Waypoint finalWp = wp;
-            handlers.put(slot, () -> handleWaypointClick(player, finalWp, fromBlock));
+        if (category == Category.PLAYERS) {
+            renderPlayersContent(inv, handlers, contentSlots, items, start, player);
+        } else {
+            @SuppressWarnings("unchecked")
+            List<Waypoint> waypoints = (List<Waypoint>) items;
+            Set<String> dupes = duplicateNames(waypoints);
+            renderWaypointContent(player, category, inv, handlers, contentSlots, waypoints, dupes, start);
         }
 
-        // Bottom row navigation
-        final int currentPage = page;
-        if (page > 0) {
-            inv.setItem(45, makeItem(Material.RED_STAINED_GLASS_PANE, "Previous Page",
-                    List.of(colorLine("Go to page " + page, NamedTextColor.GRAY))));
-            handlers.put(45, () -> renderHubGui(player, focusedWaypointId, fromBlock, currentPage - 1));
+        if (items.isEmpty()) {
+            renderEmptyState(inv, category);
         }
 
-        inv.setItem(47, makeItem(Material.PAPER, "Page " + (page + 1) + " / " + totalPages, List.of()));
-
-        if (focusedWaypointId != null) {
-            plugin.getWaypointManager().getWaypoint(focusedWaypointId).ifPresent(focused -> {
-                String focusedLabel = label(focused, dupes);
-                inv.setItem(49, makeItem(Material.COMPASS, "This Pinpoint: " + focusedLabel,
-                        List.of(colorLine("Click to manage", NamedTextColor.YELLOW))));
-                handlers.put(49, () -> openManageGui(player, focused, fromBlock));
-            });
+        // Pending incoming teleport request banner — occupies row 0 (slots 0-8)
+        UUID incomingRequesterId = plugin.getWaypointManager().getIncomingRequest(uuid);
+        if (incomingRequesterId != null) {
+            renderPendingRequestBanner(player, inv, handlers, incomingRequesterId);
         }
 
-        inv.setItem(51, makeItem(Material.BARRIER, "Close", List.of()));
-        handlers.put(51, () -> closeGui(player));
-
-        if (page < totalPages - 1) {
-            inv.setItem(53, makeItem(Material.GREEN_STAINED_GLASS_PANE, "Next Page",
-                    List.of(colorLine("Go to page " + (page + 2), NamedTextColor.GRAY))));
-            handlers.put(53, () -> renderHubGui(player, focusedWaypointId, fromBlock, currentPage + 1));
-        }
+        renderBottomNav(player, inv, handlers, category, page, totalPages);
 
         openGui(player, inv, handlers);
     }
+
+    // -------------------------------------------------------------------------
+    // Category content helpers
+    // -------------------------------------------------------------------------
+
+    private List<?> getCategoryItems(Player player, Category category) {
+        UUID uuid = player.getUniqueId();
+        return switch (category) {
+            case OWNED      -> plugin.getWaypointManager().getOwnedWaypoints(uuid);
+            case INVITED    -> plugin.getWaypointManager().getInvitedWaypoints(uuid);
+            case PUBLIC     -> plugin.getWaypointManager().getPublicWaypoints(uuid);
+            case LANDMARKS  -> plugin.getWaypointManager().getLandmarks();
+            case PLAYERS    -> new ArrayList<>(Bukkit.getOnlinePlayers()).stream()
+                                    .filter(p -> !p.getUniqueId().equals(uuid))
+                                    .sorted(Comparator.comparing(Player::getName))
+                                    .collect(Collectors.toList());
+        };
+    }
+
+    private void renderWaypointContent(Player player, Category category, Inventory inv,
+            Map<Integer, Runnable> handlers, int[] contentSlots,
+            List<Waypoint> waypoints, Set<String> dupes, int start) {
+        for (int i = 0; i < PAGE_SIZE; i++) {
+            int wpIdx = start + i;
+            if (wpIdx >= waypoints.size()) break;
+            Waypoint wp = waypoints.get(wpIdx);
+            int slot = contentSlots[i];
+
+            NamedTextColor nameColor = switch (category) {
+                case OWNED      -> NamedTextColor.GREEN;
+                case LANDMARKS  -> NamedTextColor.AQUA;
+                default         -> NamedTextColor.WHITE;
+            };
+            Material icon = (category == Category.LANDMARKS) ? getLandmarkIcon() : wp.getIconMaterial();
+            List<Component> lore = buildWaypointLore(wp, category);
+            inv.setItem(slot, makeItem(icon, label(wp, dupes), lore, nameColor));
+            final Waypoint finalWp = wp;
+            handlers.put(slot, () -> handleWaypointClick(player, finalWp));
+        }
+    }
+
+    private List<Component> buildWaypointLore(Waypoint wp, Category category) {
+        List<Component> lore = new ArrayList<>();
+        switch (category) {
+            case OWNED -> {
+                lore.add(wp.isPublic()
+                        ? colorLine("Public", NamedTextColor.GREEN)
+                        : colorLine("Private", NamedTextColor.RED));
+                lore.add(wp.getFee() > 0 && plugin.getEconomyManager().isEnabled()
+                        ? colorLine("Fee: " + plugin.getEconomyManager().format(wp.getFee()), NamedTextColor.GOLD)
+                        : colorLine("Free", NamedTextColor.GREEN));
+                lore.add(colorLine("Click to teleport or manage", NamedTextColor.YELLOW));
+            }
+            case INVITED -> {
+                lore.add(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY));
+                lore.add(colorLine("Private — invited", NamedTextColor.AQUA));
+                lore.add(wp.getFee() > 0 && plugin.getEconomyManager().isEnabled()
+                        ? colorLine("Fee: " + plugin.getEconomyManager().format(wp.getFee()), NamedTextColor.GOLD)
+                        : colorLine("Free", NamedTextColor.GREEN));
+                lore.add(colorLine("Click to teleport", NamedTextColor.YELLOW));
+            }
+            case PUBLIC -> {
+                lore.add(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY));
+                lore.add(wp.getFee() > 0 && plugin.getEconomyManager().isEnabled()
+                        ? colorLine("Fee: " + plugin.getEconomyManager().format(wp.getFee()), NamedTextColor.GOLD)
+                        : colorLine("Free", NamedTextColor.GREEN));
+                lore.add(colorLine("Click to teleport", NamedTextColor.YELLOW));
+            }
+            case LANDMARKS -> {
+                lore.add(colorLine("Landmark", NamedTextColor.AQUA));
+                lore.add(wp.getFee() > 0 && plugin.getEconomyManager().isEnabled()
+                        ? colorLine("Fee: " + plugin.getEconomyManager().format(wp.getFee()), NamedTextColor.GOLD)
+                        : colorLine("Free", NamedTextColor.GREEN));
+                lore.add(colorLine("Click to teleport", NamedTextColor.YELLOW));
+            }
+            default -> {}
+        }
+        return lore;
+    }
+
+    // -------------------------------------------------------------------------
+    // Pending teleport request banner — row 0 (slots 0-8) of category GUI
+    // -------------------------------------------------------------------------
+
+    private void renderPendingRequestBanner(Player target, Inventory inv,
+            Map<Integer, Runnable> handlers, UUID requesterId) {
+        long expiryMs = plugin.getWaypointManager().getPendingPlayerRequestExpiry(requesterId);
+        long remainingSecs = Math.max(0, (expiryMs - System.currentTimeMillis()) / 1000);
+        int bopsCost = plugin.getConfig().getInt("player-teleport.cost-bops", 100);
+
+        // Slot 0: orange glass accent
+        inv.setItem(0, makeItem(Material.ORANGE_STAINED_GLASS_PANE, " ", List.of()));
+        // Slot 8: orange glass accent
+        inv.setItem(8, makeItem(Material.ORANGE_STAINED_GLASS_PANE, " ", List.of()));
+
+        // Slot 1: requester skull
+        List<Component> infoLore = new ArrayList<>();
+        infoLore.add(colorLine("Wants to teleport to you!", NamedTextColor.GREEN));
+        infoLore.add(colorLine("Expires in: " + remainingSecs + "s", NamedTextColor.YELLOW));
+        inv.setItem(1, makeSkullByUuid(requesterId,
+                Bukkit.getOfflinePlayer(requesterId).getName() != null
+                        ? Bukkit.getOfflinePlayer(requesterId).getName()
+                        : "Unknown",
+                infoLore));
+
+        // Slot 2: separator
+        inv.setItem(2, makeItem(Material.ORANGE_STAINED_GLASS_PANE, " ", List.of()));
+
+        // Slot 3: Accept button
+        List<Component> acceptLore = new ArrayList<>();
+        acceptLore.add(colorLine("Click to accept the request", NamedTextColor.GREEN));
+        if (bopsCost > 0) {
+            acceptLore.add(colorLine("Cost: " + bopsCost + " Bops each on success", NamedTextColor.GOLD));
+        }
+        inv.setItem(3, makeItem(Material.LIME_WOOL, "Accept Request", acceptLore, NamedTextColor.GREEN));
+
+        // Slot 4: separator
+        inv.setItem(4, makeItem(Material.ORANGE_STAINED_GLASS_PANE, " ", List.of()));
+
+        // Slot 5: Deny button
+        List<Component> denyLore = new ArrayList<>();
+        denyLore.add(colorLine("Click to deny the request", NamedTextColor.RED));
+        inv.setItem(5, makeItem(Material.RED_WOOL, "Deny Request", denyLore, NamedTextColor.RED));
+
+        // Slots 6-7: separator
+        inv.setItem(6, makeItem(Material.ORANGE_STAINED_GLASS_PANE, " ", List.of()));
+        inv.setItem(7, makeItem(Material.ORANGE_STAINED_GLASS_PANE, " ", List.of()));
+
+        final UUID capturedId = requesterId;
+        handlers.put(3, () -> handlePendingRequestAccept(target, capturedId));
+        handlers.put(5, () -> handlePendingRequestDeny(target, capturedId));
+    }
+
+    private void handlePendingRequestAccept(Player target, UUID requesterId) {
+        if (!plugin.getWaypointManager().hasPendingPlayerRequest(requesterId)
+                || !target.getUniqueId().equals(plugin.getWaypointManager().getPendingPlayerRequest(requesterId))) {
+            target.sendMessage(plugin.msg("prefix") + "§cThat request has already expired.");
+            Category cat = playerCategory.getOrDefault(target.getUniqueId(), Category.OWNED);
+            renderCategoryGui(target, cat, getCategoryPage(target.getUniqueId(), cat));
+            return;
+        }
+        Player requester = Bukkit.getPlayer(requesterId);
+        if (requester == null || !requester.isOnline()) {
+            int taskId = plugin.getWaypointManager().getPendingPlayerRequestTaskId(requesterId);
+            if (taskId != -1) plugin.getServer().getScheduler().cancelTask(taskId);
+            plugin.getWaypointManager().clearPendingPlayerRequest(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestTaskId(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestExpiry(requesterId);
+            target.sendMessage(plugin.msg("prefix") + "§cThat player is no longer online.");
+            Category cat = playerCategory.getOrDefault(target.getUniqueId(), Category.OWNED);
+            renderCategoryGui(target, cat, getCategoryPage(target.getUniqueId(), cat));
+            return;
+        }
+        closeGui(target);
+        plugin.getTeleportHelper().acceptPlayerTeleportRequest(target, requester);
+    }
+
+    private void handlePendingRequestDeny(Player target, UUID requesterId) {
+        if (!plugin.getWaypointManager().hasPendingPlayerRequest(requesterId)
+                || !target.getUniqueId().equals(plugin.getWaypointManager().getPendingPlayerRequest(requesterId))) {
+            target.sendMessage(plugin.msg("prefix") + "§cThat request has already expired.");
+            Category cat = playerCategory.getOrDefault(target.getUniqueId(), Category.OWNED);
+            renderCategoryGui(target, cat, getCategoryPage(target.getUniqueId(), cat));
+            return;
+        }
+        Player requester = Bukkit.getPlayer(requesterId);
+        if (requester == null || !requester.isOnline()) {
+            int taskId = plugin.getWaypointManager().getPendingPlayerRequestTaskId(requesterId);
+            if (taskId != -1) plugin.getServer().getScheduler().cancelTask(taskId);
+            plugin.getWaypointManager().clearPendingPlayerRequest(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestTaskId(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestExpiry(requesterId);
+            target.sendMessage(plugin.msg("prefix") + "§cThat player is no longer online.");
+            Category cat = playerCategory.getOrDefault(target.getUniqueId(), Category.OWNED);
+            renderCategoryGui(target, cat, getCategoryPage(target.getUniqueId(), cat));
+            return;
+        }
+        closeGui(target);
+        plugin.getTeleportHelper().denyPlayerTeleportRequest(target, requester);
+    }
+
+    // -------------------------------------------------------------------------
+    // Players content
+    // -------------------------------------------------------------------------
+
+    private void renderPlayersContent(Inventory inv, Map<Integer, Runnable> handlers,
+            int[] contentSlots, List<?> rawItems, int start, Player viewer) {
+        @SuppressWarnings("unchecked")
+        List<Player> players = (List<Player>) rawItems;
+        int bopsCost = plugin.getConfig().getInt("player-teleport.cost-bops", 100);
+        for (int i = 0; i < PAGE_SIZE; i++) {
+            int pIdx = start + i;
+            if (pIdx >= players.size()) break;
+            Player target = players.get(pIdx);
+            int slot = contentSlots[i];
+            List<Component> lore = new ArrayList<>();
+            lore.add(colorLine("Click to send teleport request", NamedTextColor.YELLOW));
+            if (bopsCost > 0) {
+                lore.add(colorLine("Cost: " + bopsCost + " Bops each", NamedTextColor.GOLD));
+            }
+            inv.setItem(slot, makeSkull(target, target.getName(), lore));
+            final Player finalTarget = target;
+            handlers.put(slot, () -> {
+                closeGui(viewer);
+                plugin.getTeleportHelper().sendPlayerTeleportRequest(viewer, finalTarget);
+            });
+        }
+    }
+
+    private void renderEmptyState(Inventory inv, Category category) {
+        String title = switch (category) {
+            case OWNED      -> "No Pinpoints yet";
+            case INVITED    -> "No invitations";
+            case PUBLIC     -> "No public Pinpoints";
+            case PLAYERS    -> "No other players online";
+            case LANDMARKS  -> "No Landmarks";
+        };
+        String sub = switch (category) {
+            case OWNED      -> "Place a Pinpoint Block to create one";
+            case INVITED    -> "Ask a player to invite you to their Pinpoint";
+            case PUBLIC     -> "No public Pinpoints have been created yet";
+            case PLAYERS    -> "Check back when other players are online";
+            case LANDMARKS  -> "No landmarks have been created yet";
+        };
+        inv.setItem(22, makeItem(Material.PAPER, title,
+                List.of(colorLine(sub, NamedTextColor.DARK_GRAY))));
+    }
+
+    // -------------------------------------------------------------------------
+    // Bottom navigation bar
+    //
+    // Slot layout (row 5, slots 45-53):
+    //   45: Prev page  |  46: My  |  47: Invited  |  48: Public  |  49: Players
+    //   50: separator  |  51: Page indicator  |  52: Close  |  53: Next page
+    // -------------------------------------------------------------------------
+
+    private void renderBottomNav(Player player, Inventory inv, Map<Integer, Runnable> handlers,
+            Category currentCat, int page, int totalPages) {
+        // Slot 45: Prev page
+        if (page > 0) {
+            final int pg = page;
+            inv.setItem(45, makeItem(Material.ARROW, "Previous Page",
+                    List.of(colorLine("Go to page " + pg, NamedTextColor.GRAY))));
+            handlers.put(45, () -> renderCategoryGui(player, currentCat, pg - 1));
+        }
+
+        // Slots 46-50: Category tabs
+        renderTabButton(inv, handlers, player, 46, Category.OWNED,     currentCat,
+                Material.LODESTONE,    "My Pinpoints");
+        renderTabButton(inv, handlers, player, 47, Category.INVITED,   currentCat,
+                Material.WRITTEN_BOOK, "Invited");
+        renderTabButton(inv, handlers, player, 48, Category.PUBLIC,    currentCat,
+                Material.COMPASS,      "Public");
+        renderTabButton(inv, handlers, player, 49, Category.PLAYERS,   currentCat,
+                Material.PLAYER_HEAD,  "Players");
+        renderTabButton(inv, handlers, player, 50, Category.LANDMARKS, currentCat,
+                getLandmarkIcon(),     "Landmarks");
+
+        // Slot 51: Page indicator — only shown when there is more than one page
+        if (totalPages > 1) {
+            inv.setItem(51, makeItem(Material.PAPER,
+                    "Page " + (page + 1) + " / " + totalPages, List.of()));
+        }
+
+        // Slot 52: Close
+        inv.setItem(52, makeItem(Material.BARRIER, "Close", List.of()));
+        handlers.put(52, () -> closeGui(player));
+
+        // Slot 53: Next page
+        if (page < totalPages - 1) {
+            final int pg = page;
+            inv.setItem(53, makeItem(Material.ARROW, "Next Page",
+                    List.of(colorLine("Go to page " + (pg + 2), NamedTextColor.GRAY))));
+            handlers.put(53, () -> renderCategoryGui(player, currentCat, pg + 1));
+        }
+    }
+
+    private void renderTabButton(Inventory inv, Map<Integer, Runnable> handlers,
+            Player player, int slot, Category tab, Category currentTab,
+            Material mat, String name) {
+        boolean active = (tab == currentTab);
+        NamedTextColor nameColor = active ? NamedTextColor.GREEN : NamedTextColor.GRAY;
+        List<Component> lore = active
+                ? List.of(colorLine("▶ Currently viewing", NamedTextColor.GREEN))
+                : List.of(colorLine("Click to switch", NamedTextColor.DARK_GRAY));
+        inv.setItem(slot, makeItem(mat, name, lore, nameColor));
+        if (!active) {
+            // Tab switches always reset to page 0
+            handlers.put(slot, () -> renderCategoryGui(player, tab, 0));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Waypoint click dispatch from category list
+    // -------------------------------------------------------------------------
+
+    private void handleWaypointClick(Player player, Waypoint wp) {
+        boolean fromBlock = playerFromBlock.getOrDefault(player.getUniqueId(), false);
+        if (wp.getType() == WaypointType.LANDMARK) {
+            if (player.hasPermission("pinpoint.admin.landmark"))
+                openLandmarkManageGui(player, wp, fromBlock);
+            else
+                openLandmarkUseGui(player, wp, fromBlock);
+        } else if (wp.isOwner(player.getUniqueId())) {
+            openOwnerViewGui(player, wp, fromBlock);
+        } else {
+            openUseGui(player, wp, fromBlock);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Owner View GUI — teleport primary, settings secondary
+    // -------------------------------------------------------------------------
+
+    private void openOwnerViewGui(Player player, Waypoint wp, boolean fromBlock) {
+        String wpLabel = labelForPlayer(wp, player.getUniqueId());
+        Inventory inv = Bukkit.createInventory(null, 27,
+                Component.text(wpLabel).color(NamedTextColor.AQUA));
+        Map<Integer, Runnable> handlers = new HashMap<>();
+
+        List<Component> infoLore = new ArrayList<>();
+        infoLore.add(wp.isPublic()
+                ? colorLine("Public", NamedTextColor.GREEN)
+                : colorLine("Private", NamedTextColor.RED));
+        infoLore.add(wp.getFee() > 0 && plugin.getEconomyManager().isEnabled()
+                ? colorLine("Fee: " + plugin.getEconomyManager().format(wp.getFee()), NamedTextColor.GOLD)
+                : colorLine("Free", NamedTextColor.GREEN));
+        infoLore.add(colorLine("Your Pinpoint", NamedTextColor.GREEN));
+        inv.setItem(13, makeItem(wp.getIconMaterial(), wpLabel, infoLore, NamedTextColor.GREEN));
+
+        inv.setItem(11, makeItem(Material.ENDER_PEARL, "Teleport Here",
+                List.of(colorLine("Click to teleport", NamedTextColor.YELLOW))));
+        handlers.put(11, () -> {
+            if (fromBlock) plugin.getTeleportHelper().teleportFromBlock(player, wp);
+            else           plugin.getTeleportHelper().teleport(player, wp);
+        });
+
+        inv.setItem(15, makeItem(Material.WRITABLE_BOOK, "Settings",
+                List.of(colorLine("Manage visibility, fee, invites...", NamedTextColor.GRAY),
+                        colorLine("Click to open settings", NamedTextColor.YELLOW))));
+        handlers.put(15, () -> openManageGui(player, wp, fromBlock));
+
+        inv.setItem(22, makeItem(Material.ARROW, "Back",
+                List.of(colorLine("Back to list", NamedTextColor.GRAY))));
+        handlers.put(22, () -> {
+            Category cat = playerCategory.getOrDefault(player.getUniqueId(), Category.OWNED);
+            renderCategoryGui(player, cat, getCategoryPage(player.getUniqueId(), cat));
+        });
+
+        openGui(player, inv, handlers);
+    }
+
+    // -------------------------------------------------------------------------
+    // Manage GUI
+    // -------------------------------------------------------------------------
 
     public void openManageGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
@@ -231,11 +577,11 @@ public class GuiManager implements Listener {
                 List.of(colorLine("Click to teleport", NamedTextColor.YELLOW))));
         handlers.put(10, () -> {
             if (fromBlock) plugin.getTeleportHelper().teleportFromBlock(player, wp);
-            else plugin.getTeleportHelper().teleport(player, wp);
+            else           plugin.getTeleportHelper().teleport(player, wp);
         });
 
         if (isOwner) {
-            // --- Visibility toggle (Emerald = public, Redstone = private) ---
+            // Visibility toggle
             Material pubMat = wp.isPublic() ? Material.EMERALD_BLOCK : Material.REDSTONE_BLOCK;
             String pubLabel = wp.isPublic() ? "Visibility: PUBLIC" : "Visibility: PRIVATE";
             List<Component> pubLore = new ArrayList<>();
@@ -312,7 +658,6 @@ public class GuiManager implements Listener {
                 openConfirmDeleteGui(player, wp, fromBlock);
             });
 
-            // Change Icon — slot 20, overrides bottom border glass
             inv.setItem(20, makeItem(wp.getIconMaterial(), "Change Icon",
                     List.of(colorLine("Current: " + categoryName(wp.getIconMaterial()), NamedTextColor.GRAY),
                             colorLine("Click to choose a different icon", NamedTextColor.YELLOW))));
@@ -323,38 +668,38 @@ public class GuiManager implements Listener {
                 openIconSelectGui(player, wp, fromBlock);
             });
 
-            // Set Facing — slot 21, overrides bottom border glass
             List<Component> facingLore = new ArrayList<>();
-            if (wp.hasTeleportYaw()) {
-                facingLore.add(colorLine("Current: " + yawToDirection(wp.getTeleportYaw()), NamedTextColor.AQUA));
+            if (wp.hasTeleportDirection()) {
+                facingLore.add(colorLine("Direction: " + capitalize(wp.getTeleportDirection()), NamedTextColor.AQUA));
             } else {
-                facingLore.add(colorLine("Not set — players spawn facing", NamedTextColor.GRAY));
-                facingLore.add(colorLine("the Pinpoint's placed direction", NamedTextColor.GRAY));
+                facingLore.add(colorLine("Not set", NamedTextColor.GRAY));
             }
-            facingLore.add(colorLine("Click to save your current", NamedTextColor.YELLOW));
-            facingLore.add(colorLine("facing as the teleport direction", NamedTextColor.YELLOW));
-            String facingTitle = wp.hasTeleportYaw()
-                    ? "Facing: " + yawToDirection(wp.getTeleportYaw())
-                    : "Set Facing Direction";
+            facingLore.add(colorLine("Click to choose a direction", NamedTextColor.YELLOW));
+            String facingTitle = wp.hasTeleportDirection()
+                    ? "Facing: " + capitalize(wp.getTeleportDirection())
+                    : "Facing Direction";
             inv.setItem(21, makeItem(Material.RECOVERY_COMPASS, facingTitle, facingLore));
             handlers.put(21, () -> {
                 if (!wp.isOwner(player.getUniqueId())) {
                     player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
                 }
-                float yaw = player.getLocation().getYaw();
-                wp.setTeleportYaw(yaw);
-                plugin.getWaypointManager().saveWaypoint(wp);
-                player.sendActionBar(Component.text("Teleport facing set to " + yawToDirection(yaw) + ".")
-                        .color(NamedTextColor.GREEN));
-                openManageGui(player, wp, fromBlock);
+                openDirectionPickerGui(player, wp, fromBlock);
             });
         }
 
+        // Back: return to the last category the player was viewing
         inv.setItem(22, makeItem(Material.ARROW, "Back", List.of()));
-        handlers.put(22, () -> openHubGui(player, wp.getId(), fromBlock));
+        handlers.put(22, () -> {
+            Category cat = playerCategory.getOrDefault(player.getUniqueId(), Category.OWNED);
+            renderCategoryGui(player, cat, getCategoryPage(player.getUniqueId(), cat));
+        });
 
         openGui(player, inv, handlers);
     }
+
+    // -------------------------------------------------------------------------
+    // Confirm Delete GUI
+    // -------------------------------------------------------------------------
 
     public void openConfirmDeleteGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
@@ -380,7 +725,7 @@ public class GuiManager implements Listener {
             if (blockLoc != null && blockLoc.getBlock().getType() == Material.LODESTONE) {
                 blockLoc.getBlock().setType(Material.AIR);
             }
-            // Return the Pinpoint item to the owner; drop at block location if inventory is full
+            // Return the Pinpoint item; drop at block if inventory full
             ItemStack returned = plugin.getItemManager().createWaypointBlockItem();
             Map<Integer, ItemStack> leftover = player.getInventory().addItem(returned);
             if (!leftover.isEmpty() && blockLoc != null) {
@@ -394,35 +739,171 @@ public class GuiManager implements Listener {
         openGui(player, inv, handlers);
     }
 
+    // -------------------------------------------------------------------------
+    // Use GUI (non-owners)
+    // -------------------------------------------------------------------------
+
     public void openUseGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
         Inventory inv = Bukkit.createInventory(null, 27,
                 Component.text("Use: " + wpLabel).color(NamedTextColor.AQUA));
         Map<Integer, Runnable> handlers = new HashMap<>();
+        fillBorder(inv, 3);
 
         inv.setItem(13, makeItem(wp.getIconMaterial(), wpLabel,
                 List.of(colorLine("Owner: " + wp.getOwnerName(), NamedTextColor.GRAY),
-                        colorLine(wp.isPublic() ? "Public" : "Private",
-                                wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED))));
+                        colorLine(wp.isPublic() ? "Public" : "Private — invited",
+                                  wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.AQUA))));
 
         inv.setItem(11, makeItem(Material.ENDER_PEARL, "Teleport Here",
                 List.of(colorLine("Click to teleport", NamedTextColor.YELLOW))));
         handlers.put(11, () -> {
             if (fromBlock) plugin.getTeleportHelper().teleportFromBlock(player, wp);
-            else plugin.getTeleportHelper().teleport(player, wp);
+            else           plugin.getTeleportHelper().teleport(player, wp);
         });
 
+        // Back: return to the last category the player was viewing
         inv.setItem(15, makeItem(Material.ARROW, "Back",
-                List.of(colorLine("Back to hub", NamedTextColor.GRAY))));
-        handlers.put(15, () -> openHubGui(player, null, fromBlock));
+                List.of(colorLine("Back to list", NamedTextColor.GRAY))));
+        handlers.put(15, () -> {
+            Category cat = playerCategory.getOrDefault(player.getUniqueId(), Category.OWNED);
+            renderCategoryGui(player, cat, getCategoryPage(player.getUniqueId(), cat));
+        });
 
         openGui(player, inv, handlers);
     }
 
+    // -------------------------------------------------------------------------
+    // Landmark Use GUI
+    // -------------------------------------------------------------------------
+
+    public void openLandmarkUseGui(Player player, Waypoint landmark, boolean fromBlock) {
+        boolean teleportEnabled = plugin.getConfig().getBoolean("landmarks.teleport.enabled", true);
+        double cost = plugin.getConfig().getDouble("landmarks.teleport.cost", 0);
+
+        Inventory inv = Bukkit.createInventory(null, 27,
+                Component.text(landmark.getName()).color(NamedTextColor.AQUA));
+        Map<Integer, Runnable> handlers = new HashMap<>();
+        fillBorder(inv, 3);
+
+        List<Component> infoLore = new ArrayList<>();
+        infoLore.add(colorLine("Landmark", NamedTextColor.AQUA));
+        if (cost > 0 && plugin.getEconomyManager().isEnabled()) {
+            infoLore.add(colorLine("Fee: " + plugin.getEconomyManager().format(cost), NamedTextColor.GOLD));
+        } else {
+            infoLore.add(colorLine("Free", NamedTextColor.GREEN));
+        }
+        inv.setItem(13, makeItem(getLandmarkIcon(), landmark.getName(), infoLore, NamedTextColor.AQUA));
+
+        if (teleportEnabled) {
+            inv.setItem(11, makeItem(Material.ENDER_PEARL, "Teleport Here",
+                    List.of(colorLine("Click to teleport", NamedTextColor.YELLOW))));
+            handlers.put(11, () -> {
+                closeGui(player);
+                if (fromBlock) plugin.getTeleportHelper().teleportFromBlock(player, landmark);
+                else           plugin.getTeleportHelper().teleport(player, landmark);
+            });
+        }
+
+        inv.setItem(15, makeItem(Material.ARROW, "Back",
+                List.of(colorLine("Back to list", NamedTextColor.GRAY))));
+        handlers.put(15, () -> {
+            Category cat = playerCategory.getOrDefault(player.getUniqueId(), Category.LANDMARKS);
+            renderCategoryGui(player, cat, getCategoryPage(player.getUniqueId(), cat));
+        });
+
+        openGui(player, inv, handlers);
+    }
+
+    // -------------------------------------------------------------------------
+    // Landmark Manage GUI (admin only)
+    // -------------------------------------------------------------------------
+
+    public void openLandmarkManageGui(Player player, Waypoint landmark, boolean fromBlock) {
+        Inventory inv = Bukkit.createInventory(null, 27,
+                Component.text("Manage: " + landmark.getName()).color(NamedTextColor.GOLD));
+        Map<Integer, Runnable> handlers = new HashMap<>();
+        fillBorder(inv, 3);
+
+        List<Component> infoLore = new ArrayList<>();
+        infoLore.add(colorLine("Landmark", NamedTextColor.AQUA));
+        double cost = plugin.getConfig().getDouble("landmarks.teleport.cost", 0);
+        if (cost > 0 && plugin.getEconomyManager().isEnabled()) {
+            infoLore.add(colorLine("Fee: " + plugin.getEconomyManager().format(cost), NamedTextColor.GOLD));
+        } else {
+            infoLore.add(colorLine("Free", NamedTextColor.GREEN));
+        }
+        inv.setItem(13, makeItem(getLandmarkIcon(), landmark.getName(), infoLore, NamedTextColor.AQUA));
+
+        inv.setItem(11, makeItem(Material.ENDER_PEARL, "Teleport Here",
+                List.of(colorLine("Click to teleport", NamedTextColor.YELLOW))));
+        handlers.put(11, () -> {
+            closeGui(player);
+            if (fromBlock) plugin.getTeleportHelper().teleportFromBlock(player, landmark);
+            else           plugin.getTeleportHelper().teleport(player, landmark);
+        });
+
+        inv.setItem(15, makeItem(Material.TNT, "Delete Landmark",
+                List.of(colorLine("Permanently removes this Landmark", NamedTextColor.RED),
+                        colorLine("This cannot be undone!", NamedTextColor.DARK_RED))));
+        handlers.put(15, () -> {
+            if (!player.hasPermission("pinpoint.admin.landmark.delete")) {
+                player.sendMessage(plugin.msg("prefix") + "§cYou do not have permission to delete Landmarks.");
+                return;
+            }
+            openConfirmLandmarkDeleteGui(player, landmark, fromBlock);
+        });
+
+        inv.setItem(22, makeItem(Material.ARROW, "Back",
+                List.of(colorLine("Back to Landmarks", NamedTextColor.GRAY))));
+        handlers.put(22, () -> {
+            Category cat = playerCategory.getOrDefault(player.getUniqueId(), Category.LANDMARKS);
+            renderCategoryGui(player, cat, getCategoryPage(player.getUniqueId(), cat));
+        });
+
+        openGui(player, inv, handlers);
+    }
+
+    private void openConfirmLandmarkDeleteGui(Player player, Waypoint landmark, boolean fromBlock) {
+        Inventory inv = Bukkit.createInventory(null, 27,
+                Component.text("Delete: " + landmark.getName() + "?").color(NamedTextColor.RED));
+        Map<Integer, Runnable> handlers = new HashMap<>();
+        fillBorder(inv, 3);
+
+        inv.setItem(13, makeItem(getLandmarkIcon(), landmark.getName(),
+                List.of(colorLine("This cannot be undone!", NamedTextColor.RED)), NamedTextColor.AQUA));
+
+        inv.setItem(11, makeItem(Material.LIME_WOOL, "Cancel",
+                List.of(colorLine("Go back, keep Landmark", NamedTextColor.GREEN))));
+        handlers.put(11, () -> openLandmarkManageGui(player, landmark, fromBlock));
+
+        inv.setItem(15, makeItem(Material.RED_WOOL, "Confirm Delete",
+                List.of(colorLine("Permanently deletes this Landmark", NamedTextColor.RED))));
+        handlers.put(15, () -> {
+            Location blockLoc = landmark.getLocation();
+            plugin.getHologramManager().removeHologram(landmark.getId());
+            plugin.getWaypointManager().deleteWaypoint(landmark.getId());
+            if (blockLoc != null) {
+                org.bukkit.block.Block block = blockLoc.getBlock();
+                String matName = plugin.getConfig().getString("landmarks.block.material", "LODESTONE");
+                Material landmarkMat = Material.matchMaterial(matName != null ? matName : "LODESTONE");
+                if (landmarkMat == null) landmarkMat = Material.LODESTONE;
+                if (block.getType() == landmarkMat) block.setType(Material.AIR);
+            }
+            closeGui(player);
+            player.sendMessage(plugin.msg("prefix") + "§aLandmark '§b" + landmark.getName() + "§a' deleted.");
+        });
+
+        openGui(player, inv, handlers);
+    }
+
+    // -------------------------------------------------------------------------
+    // Invite GUI
+    // -------------------------------------------------------------------------
+
     public void openInviteGui(Player player, Waypoint wp, boolean fromBlock) {
         String wpLabel = labelForPlayer(wp, player.getUniqueId());
 
-        // Online players excluding the waypoint owner
         List<Player> onlinePlayers = new ArrayList<>(Bukkit.getOnlinePlayers());
         onlinePlayers.removeIf(p -> p.getUniqueId().equals(wp.getOwnerUuid()));
 
@@ -483,162 +964,141 @@ public class GuiManager implements Listener {
         openGui(player, inv, handlers);
     }
 
-    public void openAcceptDenyGui(Player player, String inviterName, String waypointLabel) {
-        Inventory inv = Bukkit.createInventory(null, 27,
-                Component.text("Teleport Invite").color(NamedTextColor.AQUA));
+
+    // -------------------------------------------------------------------------
+    // Icon Select GUI
+    // -------------------------------------------------------------------------
+
+    public void openIconSelectGui(Player player, Waypoint wp, boolean fromBlock) {
+        List<Material> palette = buildPalette(player);
+        Material current = wp.getIconMaterial();
+
+        int contentRows = Math.max(1, (int) Math.ceil(palette.size() / 7.0));
+        int totalRows   = Math.min(contentRows + 2, 6);
+        int invSize     = totalRows * 9;
+
+        Inventory inv = Bukkit.createInventory(null, invSize,
+                Component.text("Choose Icon").color(NamedTextColor.AQUA));
         Map<Integer, Runnable> handlers = new HashMap<>();
+        fillBorder(inv, totalRows);
 
-        inv.setItem(13, makeItem(Material.PAPER,
-                inviterName + " invites you to " + waypointLabel,
-                List.of(colorLine("Accept or deny below", NamedTextColor.GRAY))));
+        int palIdx = 0;
+        outer:
+        for (int row = 1; row <= totalRows - 2; row++) {
+            for (int col = 1; col <= 7; col++) {
+                if (palIdx >= palette.size()) break outer;
+                int slot = row * 9 + col;
+                Material mat = palette.get(palIdx);
+                List<Component> lore = List.of(mat == current
+                        ? colorLine("Currently selected", NamedTextColor.GREEN)
+                        : colorLine("Click to select", NamedTextColor.YELLOW));
+                inv.setItem(slot, makeItem(mat, categoryName(mat), lore));
+                final Material finalMat = mat;
+                handlers.put(slot, () -> {
+                    if (!wp.isOwner(player.getUniqueId())) {
+                        player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+                    }
+                    wp.setIconMaterial(finalMat);
+                    plugin.getWaypointManager().saveWaypoint(wp);
+                    player.sendMessage(plugin.msg("prefix") + "§aIcon changed to §b" + categoryName(finalMat) + "§a.");
+                    openManageGui(player, wp, fromBlock);
+                });
+                palIdx++;
+            }
+        }
 
-        inv.setItem(11, makeItem(Material.LIME_WOOL, "Accept",
-                List.of(colorLine("Teleport with " + inviterName, NamedTextColor.GREEN))));
-        handlers.put(11, () -> plugin.getCommandHandler().processAccept(player));
-
-        inv.setItem(15, makeItem(Material.RED_WOOL, "Deny",
-                List.of(colorLine("Decline the invite", NamedTextColor.RED))));
-        handlers.put(15, () -> plugin.getCommandHandler().processDeny(player));
+        int backSlot = (totalRows - 1) * 9 + 4;
+        inv.setItem(backSlot, makeItem(Material.ARROW, "Back", List.of()));
+        handlers.put(backSlot, () -> openManageGui(player, wp, fromBlock));
 
         openGui(player, inv, handlers);
     }
 
-    public void openInviteSelectGui(Player inviter, Player target, List<Waypoint> options) {
-        Set<String> dupes = duplicateNames(options);
-        int rows = Math.max(3, Math.min(6, (int) Math.ceil((options.size() + 9) / 9.0) + 1));
-        Inventory inv = Bukkit.createInventory(null, rows * 9,
-                Component.text("Pinpoint Access: " + target.getName()).color(NamedTextColor.AQUA));
+    // -------------------------------------------------------------------------
+    // Direction Picker GUI
+    // -------------------------------------------------------------------------
+
+    public void openDirectionPickerGui(Player player, Waypoint wp, boolean fromBlock) {
+        Inventory inv = Bukkit.createInventory(null, 27,
+                Component.text("Facing Direction").color(NamedTextColor.AQUA));
         Map<Integer, Runnable> handlers = new HashMap<>();
-        fillBorder(inv, rows);
+        fillBorder(inv, 3);
 
-        int slot = 10;
-        for (Waypoint wp : options) {
-            if (slot >= rows * 9 - 9) break;
-            boolean hasAccess = wp.isInvited(target.getUniqueId());
+        String current = wp.hasTeleportDirection() ? wp.getTeleportDirection() : null;
+
+        String[]   dirNames = {"NORTH", "SOUTH", "EAST", "WEST"};
+        Material[] dirMats  = {Material.BLUE_CONCRETE, Material.RED_CONCRETE,
+                               Material.GREEN_CONCRETE, Material.YELLOW_CONCRETE};
+        int[]      dirSlots = {10, 12, 14, 16};
+
+        for (int i = 0; i < dirNames.length; i++) {
+            final String dirName = dirNames[i];
+            final int    dirSlot = dirSlots[i];
+            boolean isCurrent = dirName.equals(current);
             List<Component> lore = new ArrayList<>();
-            lore.add(colorLine(wp.isPublic() ? "Public" : "Private",
-                    wp.isPublic() ? NamedTextColor.GREEN : NamedTextColor.RED));
-            if (wp.isPublic()) {
-                lore.add(colorLine("Everyone already has access", NamedTextColor.GRAY));
-            } else if (hasAccess) {
-                lore.add(colorLine(target.getName() + " has access", NamedTextColor.GREEN));
-                lore.add(colorLine("Click to remove access", NamedTextColor.RED));
-            } else {
-                lore.add(colorLine("Click to invite " + target.getName(), NamedTextColor.YELLOW));
-            }
-            inv.setItem(slot, makeItem(wp.getIconMaterial(), label(wp, dupes), lore));
-            final Waypoint finalWp = wp;
-            final boolean finalHasAccess = hasAccess;
-            handlers.put(slot, () -> {
-                if (wp.isPublic()) {
-                    inviter.sendMessage(plugin.msg("prefix") + "§7This Pinpoint is public — everyone already has access.");
-                    return;
-                }
-                if (finalHasAccess) {
-                    finalWp.removeInvite(target.getUniqueId());
-                    plugin.getWaypointManager().saveWaypoint(finalWp);
-                    inviter.sendMessage(plugin.msg("prefix")
-                            + "§cRemoved access for §b" + target.getName() + "§c.");
-                    if (target.isOnline()) {
-                        target.sendMessage(plugin.msg("prefix")
-                                + "§cYour access to §b" + finalWp.getName() + "§c has been removed.");
-                    }
-                    closeGui(inviter);
-                } else {
-                    sendInvite(inviter, target, finalWp);
-                }
-            });
-            slot++;
-            if ((slot % 9) == 8) slot += 2;
-        }
-
-        int cancelSlot = rows * 9 - 1;
-        inv.setItem(cancelSlot, makeItem(Material.BARRIER, "Cancel", List.of()));
-        handlers.put(cancelSlot, () -> closeGui(inviter));
-
-        openGui(inviter, inv, handlers);
-    }
-
-    public void openIconSelectGui(Player player, Waypoint wp, boolean fromBlock) {
-        Inventory inv = Bukkit.createInventory(null, 36,
-                Component.text("Choose Icon").color(NamedTextColor.AQUA));
-        Map<Integer, Runnable> handlers = new HashMap<>();
-        fillBorder(inv, 4);
-
-        // 10 icons fill slots 10-16 (first row of content) then 19-21 (second row)
-        int[] slots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21};
-        Material current = wp.getIconMaterial();
-
-        for (int i = 0; i < ICON_PALETTE.size() && i < slots.length; i++) {
-            Material mat = ICON_PALETTE.get(i);
-            int slot = slots[i];
-            List<Component> lore = new ArrayList<>();
-            if (mat == current) {
-                lore.add(colorLine("Currently selected", NamedTextColor.GREEN));
-            } else {
-                lore.add(colorLine("Click to select", NamedTextColor.YELLOW));
-            }
-            inv.setItem(slot, makeItem(mat, categoryName(mat), lore));
-            final Material finalMat = mat;
-            handlers.put(slot, () -> {
+            lore.add(isCurrent
+                    ? colorLine("Currently set", NamedTextColor.GREEN)
+                    : colorLine("Click to set", NamedTextColor.YELLOW));
+            inv.setItem(dirSlot, makeItem(dirMats[i], capitalize(dirName), lore));
+            handlers.put(dirSlot, () -> {
                 if (!wp.isOwner(player.getUniqueId())) {
                     player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
                 }
-                wp.setIconMaterial(finalMat);
+                wp.setTeleportDirection(dirName);
                 plugin.getWaypointManager().saveWaypoint(wp);
-                player.sendMessage(plugin.msg("prefix") + "§aIcon changed to §b" + categoryName(finalMat) + "§a.");
+                player.sendActionBar(Component.text("Facing direction set to " + capitalize(dirName) + ".")
+                        .color(NamedTextColor.GREEN));
                 openManageGui(player, wp, fromBlock);
             });
         }
 
-        // Back button overrides bottom border glass at slot 31 (center of bottom row)
-        inv.setItem(31, makeItem(Material.ARROW, "Back", List.of()));
-        handlers.put(31, () -> openManageGui(player, wp, fromBlock));
+        inv.setItem(21, makeItem(Material.BARRIER, "Clear Direction",
+                List.of(colorLine("Remove saved facing direction", NamedTextColor.GRAY))));
+        handlers.put(21, () -> {
+            if (!wp.isOwner(player.getUniqueId())) {
+                player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("not-owner")); return;
+            }
+            wp.clearTeleportDirection();
+            plugin.getWaypointManager().saveWaypoint(wp);
+            player.sendActionBar(Component.text("Facing direction cleared.").color(NamedTextColor.GRAY));
+            openManageGui(player, wp, fromBlock);
+        });
+
+        inv.setItem(23, makeItem(Material.ARROW, "Back", List.of()));
+        handlers.put(23, () -> openManageGui(player, wp, fromBlock));
 
         openGui(player, inv, handlers);
     }
 
-    private void sendInvite(Player inviter, Player target, Waypoint wp) {
-        if (!target.isOnline()) {
-            inviter.sendMessage(plugin.msg("prefix") + "§c" + target.getName() + " is no longer online.");
-            closeGui(inviter);
-            return;
-        }
-        if (plugin.getWaypointManager().hasPendingInvite(target.getUniqueId())) {
-            inviter.sendMessage(plugin.msg("prefix") + "§c" + target.getName() + " already has a pending invite.");
-            return;
-        }
+    // -------------------------------------------------------------------------
+    // Icon palette builder
+    // -------------------------------------------------------------------------
 
-        plugin.getWaypointManager().createInvite(
-                inviter.getUniqueId(), target.getUniqueId(), wp.getId(), java.util.UUID.randomUUID());
-        closeGui(inviter);
-        inviter.sendMessage(plugin.msg("prefix") +
-                String.format(plugin.msgCfg("invite-sent"), target.getName()));
-
-        // Chat-only notification — no GUI is forced open so shift+Pearl works immediately on all clients
-        target.sendMessage(plugin.msg("prefix") +
-                String.format(plugin.msgCfg("invite-received"), inviter.getName(), wp.getName()));
-
-        int timeoutSeconds = plugin.getConfig().getInt("settings.invite-timeout", 60);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (plugin.getWaypointManager().hasPendingInvite(target.getUniqueId())) {
-                plugin.getWaypointManager().removeInvite(target.getUniqueId());
-                if (target.isOnline())
-                    target.sendMessage(plugin.msg("prefix") + plugin.msgCfg("invite-expired"));
-                if (inviter.isOnline())
-                    inviter.sendMessage(plugin.msg("prefix") + "§c" + target.getName() + "'s invite expired.");
+    private List<Material> buildPalette(Player player) {
+        List<Material> palette = new ArrayList<>(ICON_PALETTE);
+        ConfigurationSection permSec = plugin.getConfig().getConfigurationSection("icon-permissions");
+        if (permSec == null) return palette;
+        for (String perm : permSec.getKeys(true)) {
+            List<String> matNames = permSec.getStringList(perm);
+            if (matNames.isEmpty()) continue;
+            if (!player.hasPermission(perm)) continue;
+            for (String name : matNames) {
+                Material mat = Material.matchMaterial(name);
+                if (mat != null && !palette.contains(mat)) palette.add(mat);
             }
-        }, timeoutSeconds * 20L);
+        }
+        return palette;
     }
 
-    // --- Internal ---
 
-    private void handleWaypointClick(Player player, Waypoint wp, boolean fromBlock) {
-        if (wp.isOwner(player.getUniqueId())) {
-            openManageGui(player, wp, fromBlock);
-        } else {
-            openUseGui(player, wp, fromBlock);
-        }
+    // -------------------------------------------------------------------------
+    // Internal helpers
+    // -------------------------------------------------------------------------
+
+    private Material getLandmarkIcon() {
+        String iconStr = plugin.getConfig().getString("landmarks.gui.icon", "BEACON");
+        Material mat = Material.matchMaterial(iconStr != null ? iconStr : "BEACON");
+        return mat != null ? mat : Material.BEACON;
     }
 
     private String labelForPlayer(Waypoint wp, UUID playerUuid) {
@@ -646,24 +1106,24 @@ public class GuiManager implements Listener {
         return label(wp, duplicateNames(accessible));
     }
 
-    // --- Item / lore helpers ---
-
-    private void fillBorder(Inventory inv, int rows) {
-        ItemStack glass = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ", List.of());
-        int size = rows * 9;
-        for (int i = 0; i < 9; i++) inv.setItem(i, glass);
-        for (int i = size - 9; i < size; i++) inv.setItem(i, glass);
-        for (int i = 0; i < rows; i++) {
-            inv.setItem(i * 9, glass);
-            inv.setItem(i * 9 + 8, glass);
-        }
-    }
+    private void fillBorder(Inventory inv, int rows) {}
 
     private ItemStack makeSkull(Player owner, String name, List<Component> lore) {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) item.getItemMeta();
         meta.setOwningPlayer(owner);
         meta.displayName(Component.text(name).color(NamedTextColor.WHITE)
+                .decoration(TextDecoration.ITALIC, false));
+        if (!lore.isEmpty()) meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private ItemStack makeSkullByUuid(UUID uuid, String name, List<Component> lore) {
+        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) item.getItemMeta();
+        meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
+        meta.displayName(Component.text(name).color(NamedTextColor.AQUA)
                 .decoration(TextDecoration.ITALIC, false));
         if (!lore.isEmpty()) meta.lore(lore);
         item.setItemMeta(meta);
@@ -698,16 +1158,9 @@ public class GuiManager implements Listener {
         return sb.toString();
     }
 
-    private static String yawToDirection(float yaw) {
-        yaw = ((yaw % 360) + 360) % 360;
-        if (yaw < 22.5f || yaw >= 337.5f) return "South";
-        if (yaw < 67.5f)                  return "Southwest";
-        if (yaw < 112.5f)                 return "West";
-        if (yaw < 157.5f)                 return "Northwest";
-        if (yaw < 202.5f)                 return "North";
-        if (yaw < 247.5f)                 return "Northeast";
-        if (yaw < 292.5f)                 return "East";
-        return "Southeast";
+    private String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1).toLowerCase();
     }
 
     private String categoryName(Material mat) {

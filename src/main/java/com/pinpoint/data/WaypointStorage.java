@@ -68,12 +68,19 @@ public class WaypointStorage {
                 org.bukkit.Location loc = new org.bukkit.Location(world, x, y, z, yaw, pitch);
                 Waypoint wp = new Waypoint(id, name, ownerUuid, ownerName, loc, isPublic, fee);
 
+                String typeStr = data.getString(path + "type", "PINPOINT");
+                try { wp.setType(WaypointType.valueOf(typeStr)); } catch (Exception ignored) {}
+
                 String iconStr = data.getString(path + "icon", "LODESTONE");
                 org.bukkit.Material iconMat = org.bukkit.Material.matchMaterial(iconStr);
                 if (iconMat != null) wp.setIconMaterial(iconMat);
 
-                if (data.contains(path + "teleport-yaw")) {
-                    wp.setTeleportYaw((float) data.getDouble(path + "teleport-yaw"));
+                if (data.contains(path + "teleport-direction")) {
+                    wp.setTeleportDirection(data.getString(path + "teleport-direction"));
+                } else if (data.contains(path + "teleport-yaw")) {
+                    // Migrate legacy exact-yaw to nearest cardinal direction.
+                    float legacyYaw = (float) data.getDouble(path + "teleport-yaw");
+                    wp.setTeleportDirection(yawToCardinal(legacyYaw));
                 }
 
                 List<String> invited = data.getStringList(path + "invited");
@@ -96,6 +103,7 @@ public class WaypointStorage {
 
     public void saveWaypoint(Waypoint wp) {
         String path = "waypoints." + wp.getId() + ".";
+        data.set(path + "type", wp.getType().name());
         data.set(path + "name", wp.getName());
         data.set(path + "owner-uuid", wp.getOwnerUuid().toString());
         data.set(path + "owner-name", wp.getOwnerName());
@@ -108,7 +116,10 @@ public class WaypointStorage {
         data.set(path + "public", wp.isPublic());
         data.set(path + "fee", wp.getFee());
         data.set(path + "icon", wp.getIconMaterialName());
-        data.set(path + "teleport-yaw", wp.hasTeleportYaw() ? (double) wp.getTeleportYaw() : null);
+        data.set(path + "teleport-direction",
+                wp.hasTeleportDirection() ? wp.getTeleportDirection() : null);
+        data.set(path + "teleport-yaw",   null);
+        data.set(path + "teleport-pitch", null);
 
         List<String> invited = new ArrayList<>();
         wp.getInvitedPlayers().forEach(u -> invited.add(u.toString()));
@@ -124,5 +135,13 @@ public class WaypointStorage {
     public void deleteWaypoint(UUID id) {
         data.set("waypoints." + id, null);
         save();
+    }
+
+    private static String yawToCardinal(float yaw) {
+        yaw = ((yaw % 360) + 360) % 360;
+        if (yaw < 45 || yaw >= 315) return "SOUTH";
+        if (yaw < 135)               return "WEST";
+        if (yaw < 225)               return "NORTH";
+        return "EAST";
     }
 }

@@ -2,8 +2,10 @@ package com.pinpoint.hologram;
 
 import com.pinpoint.PinpointPlugin;
 import com.pinpoint.data.Waypoint;
+import com.pinpoint.data.WaypointType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -195,6 +197,10 @@ public class HologramManager implements Listener {
     }
 
     private List<Component> buildLines(Waypoint wp) {
+        if (wp.getType() == WaypointType.LANDMARK) {
+            return buildLandmarkLines(wp);
+        }
+
         List<Component> lines = new ArrayList<>();
 
         // Bottom: fee (only when vault is enabled)
@@ -219,6 +225,20 @@ public class HologramManager implements Listener {
         // Top: waypoint name
         lines.add(Component.text(wp.getName()).color(NamedTextColor.AQUA));
 
+        return lines;
+    }
+
+    private List<Component> buildLandmarkLines(Waypoint wp) {
+        List<Component> lines = new ArrayList<>();
+        String template = plugin.getConfig().getString(
+                "landmarks.hologram.line-1",
+                "<gradient:#00e5ff:#8a2be2><bold>%name%</bold></gradient>");
+        String text = template.replace("%name%", wp.getName());
+        try {
+            lines.add(MiniMessage.miniMessage().deserialize(text));
+        } catch (Exception e) {
+            lines.add(Component.text(wp.getName()).color(NamedTextColor.AQUA));
+        }
         return lines;
     }
 

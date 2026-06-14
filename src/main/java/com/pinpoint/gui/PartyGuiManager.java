@@ -102,7 +102,7 @@ public class PartyGuiManager {
         Party party = plugin.getPartyManager().getPartyOf(player.getUniqueId());
 
         if (party == null) {
-            player.sendMessage(plugin.msg("prefix") + "§cYou are not in a party. Shift+right-click a player with your Pinpoint Compass to link up.");
+            player.sendMessage(plugin.msg("prefix") + "§cYou are not in a party. Use §b/party accept§c after receiving a link request.");
             return;
         }
 
@@ -251,16 +251,7 @@ public class PartyGuiManager {
 
     // --- Item helpers ---
 
-    private void fillBorder(Inventory inv, int rows) {
-        ItemStack glass = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ", List.of());
-        int size = rows * 9;
-        for (int i = 0; i < 9; i++) inv.setItem(i, glass);
-        for (int i = size - 9; i < size; i++) inv.setItem(i, glass);
-        for (int row = 0; row < rows; row++) {
-            inv.setItem(row * 9, glass);
-            inv.setItem(row * 9 + 8, glass);
-        }
-    }
+    private void fillBorder(Inventory inv, int rows) {}
 
     private ItemStack makeItem(Material mat, String name, List<Component> lore) {
         ItemStack item = new ItemStack(mat);

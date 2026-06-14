@@ -3,13 +3,16 @@ package com.pinpoint.util;
 import com.pinpoint.PinpointPlugin;
 import com.pinpoint.data.Waypoint;
 import com.pinpoint.data.WaypointManager;
+import com.pinpoint.data.WaypointType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import java.util.UUID;
 
 public class TeleportHelper {
 
@@ -20,22 +23,24 @@ public class TeleportHelper {
     }
 
     /**
-     * Pearl-path teleport: 10-second countdown by default (waypoint-pearl-teleport-delay-seconds).
+     * Compass/GUI teleport: countdown from teleport.compass-delay-seconds (default 10).
+     * Applies to all waypoint types including Landmarks.
      * Cancelled by movement, damage, or logout. Item switching does NOT cancel it.
      */
     public void teleport(Player player, Waypoint wp) {
         startTeleport(player, wp,
-                plugin.getConfig().getInt("settings.waypoint-pearl-teleport-delay-seconds", 10),
+                plugin.getConfig().getInt("teleport.compass-delay-seconds", 10),
                 false);
     }
 
     /**
-     * Block-path teleport: 5-second countdown by default (waypoint-block-teleport-delay-seconds).
-     * Still runs fee and safe-spot checks. Cooldown still applies.
+     * Physical block teleport: countdown from teleport.block-delay-seconds (default 5).
+     * Triggered by right-clicking a placed Pinpoint or Landmark block.
+     * Applies to all waypoint types including Landmarks.
      */
     public void teleportFromBlock(Player player, Waypoint wp) {
         startTeleport(player, wp,
-                plugin.getConfig().getInt("settings.waypoint-block-teleport-delay-seconds", 5),
+                plugin.getConfig().getInt("teleport.block-delay-seconds", 5),
                 true);
     }
 
@@ -194,40 +199,49 @@ public class TeleportHelper {
                                 plugin.getEconomyManager().format(fee)));
                 return;
             }
-            plugin.getEconomyManager().charge(player, fee);
-
-            // Pay the owner (works for offline owners via Vault OfflinePlayer API)
-            boolean paid = plugin.getEconomyManager().depositToOwner(wp.getOwnerUuid(), fee);
-            if (!paid) {
-                // Refund the player — owner deposit failed
-                plugin.getEconomyManager().deposit(player, fee);
-                player.sendMessage(plugin.msg("prefix")
-                        + "§cTeleport fee could not be credited to the owner. Fee refunded.");
-                return;
-            }
-
-            player.sendMessage(plugin.msg("prefix") +
-                    String.format(plugin.msgCfg("fee-charged"),
-                            plugin.getEconomyManager().format(fee)));
         }
 
         Location safe = findSafe(loc);
         if (safe == null) {
             player.sendMessage(plugin.msg("prefix") + "§cCould not find a safe landing spot near §e"
                     + wp.getName() + "§c. Teleport aborted.");
-            if (fee > 0 && plugin.getEconomyManager().isEnabled()) {
-                plugin.getEconomyManager().deposit(player, fee);
-                player.sendMessage(plugin.msg("prefix") + "§aFee refunded.");
-            }
             return;
         }
 
-        if (wp.hasTeleportYaw()) {
-            safe.setYaw(wp.getTeleportYaw());
+        if (wp.hasTeleportDirection()) {
+            safe.setYaw(directionToYaw(wp.getTeleportDirection()));
             safe.setPitch(0f);
+        } else if (wp.hasTeleportYaw()) {
+            safe.setYaw(wp.getTeleportYaw());
+            safe.setPitch(wp.getTeleportPitch());
         }
 
         player.teleport(safe);
+
+        if (fee > 0 && plugin.getEconomyManager().isEnabled()) {
+            plugin.getEconomyManager().charge(player, fee);
+
+            if (wp.getType() == WaypointType.LANDMARK) {
+                // Landmarks have no owner — fee is charged but not forwarded
+                player.sendMessage(plugin.msg("prefix") +
+                        String.format(plugin.msgCfg("fee-charged"),
+                                plugin.getEconomyManager().format(fee)));
+            } else {
+                // Pay the owner (works for offline owners via Vault OfflinePlayer API)
+                boolean paid = plugin.getEconomyManager().depositToOwner(wp.getOwnerUuid(), fee);
+                if (!paid) {
+                    // Teleport already succeeded — refund the player since owner credit failed
+                    plugin.getEconomyManager().deposit(player, fee);
+                    player.sendMessage(plugin.msg("prefix")
+                            + "§cTeleport fee could not be credited to the owner. Fee refunded.");
+                } else {
+                    player.sendMessage(plugin.msg("prefix") +
+                            String.format(plugin.msgCfg("fee-charged"),
+                                    plugin.getEconomyManager().format(fee)));
+                }
+            }
+        }
+
         player.sendMessage(plugin.msg("prefix") +
                 String.format(plugin.msgCfg("waypoint-teleported"), wp.getName()));
         plugin.getWaypointManager().setRecallCooldown(player.getUniqueId());
@@ -243,6 +257,269 @@ public class TeleportHelper {
         // Notify party members — skipped for follow teleports to prevent re-notification loops
         if (!suppressFollowPrompt) {
             plugin.getPartyGuiManager().notifyPartyTravel(player, wp);
+        }
+    }
+
+    private static float directionToYaw(String direction) {
+        return switch (direction) {
+            case "NORTH" -> 180f;
+            case "SOUTH" -> 0f;
+            case "EAST"  -> -90f;
+            case "WEST"  -> 90f;
+            default      -> 0f;
+        };
+    }
+
+    // ─── Player-to-player teleport ────────────────────────────────────────────────
+
+    public void sendPlayerTeleportRequest(Player requester, Player target) {
+        if (!target.isOnline()) {
+            requester.sendMessage(plugin.msg("prefix") + "§c" + target.getName() + " is no longer online.");
+            return;
+        }
+        if (plugin.getWaypointManager().hasPendingPlayerRequest(requester.getUniqueId())) {
+            requester.sendMessage(plugin.msg("prefix") + "§cYou already have a pending teleport request.");
+            return;
+        }
+        if (plugin.getWaypointManager().hasPlayerSession(requester.getUniqueId())
+                || plugin.getWaypointManager().hasPendingTeleport(requester.getUniqueId())) {
+            requester.sendMessage(plugin.msg("prefix") + "§cYou already have a teleport in progress.");
+            return;
+        }
+
+        UUID requesterId = requester.getUniqueId();
+        UUID targetId = target.getUniqueId();
+        String requesterName = requester.getName();
+        String targetName = target.getName();
+
+        int timeout = plugin.getConfig().getInt("player-teleport.request-expire-seconds", 10);
+
+        plugin.getWaypointManager().setPendingPlayerRequest(requesterId, targetId);
+        plugin.getWaypointManager().setPendingPlayerRequestExpiry(requesterId,
+                System.currentTimeMillis() + timeout * 1000L);
+
+        int expiryTaskId = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!plugin.getWaypointManager().hasPendingPlayerRequest(requesterId)) return;
+            if (!targetId.equals(plugin.getWaypointManager().getPendingPlayerRequest(requesterId))) return;
+            plugin.getWaypointManager().clearPendingPlayerRequest(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestTaskId(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestExpiry(requesterId);
+            Player r = Bukkit.getPlayer(requesterId);
+            Player t = Bukkit.getPlayer(targetId);
+            if (r != null) r.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("player-tp-request-expired-requester"), targetName));
+            if (t != null) t.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("player-tp-request-expired-target"), requesterName));
+        }, timeout * 20L).getTaskId();
+        plugin.getWaypointManager().setPendingPlayerRequestTaskId(requesterId, expiryTaskId);
+
+        target.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("player-tp-request-received"), requesterName));
+        target.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("player-tp-request-expires-in"), timeout));
+    }
+
+    public void acceptPlayerTeleportRequest(Player target, Player requester) {
+        UUID requesterId = requester.getUniqueId();
+        UUID targetId = target.getUniqueId();
+        String requesterName = requester.getName();
+        String targetName = target.getName();
+
+        int expiryTask = plugin.getWaypointManager().getPendingPlayerRequestTaskId(requesterId);
+        if (expiryTask != -1) plugin.getServer().getScheduler().cancelTask(expiryTask);
+        plugin.getWaypointManager().clearPendingPlayerRequest(requesterId);
+        plugin.getWaypointManager().clearPendingPlayerRequestTaskId(requesterId);
+        plugin.getWaypointManager().clearPendingPlayerRequestExpiry(requesterId);
+
+        if (plugin.getWaypointManager().hasPlayerSession(requesterId)
+                || plugin.getWaypointManager().hasPlayerSession(targetId)
+                || plugin.getWaypointManager().hasPendingTeleport(requesterId)
+                || plugin.getWaypointManager().hasPendingTeleport(targetId)) {
+            target.sendMessage(plugin.msg("prefix") + "§cCannot accept — a conflicting teleport is already in progress.");
+            requester.sendMessage(plugin.msg("prefix") + "§cYour request was cancelled — a conflicting teleport is in progress.");
+            return;
+        }
+
+        int standStill = plugin.getConfig().getInt("player-teleport.stand-still-seconds", 10);
+        int cost = plugin.getConfig().getInt("player-teleport.cost-bops", 100);
+
+        // Pre-countdown balance check — both must have enough Bops before the countdown starts
+        if (cost > 0 && plugin.getEconomyManager().isEnabled()) {
+            boolean requesterAfford = plugin.getEconomyManager().hasBalance(requester, cost);
+            boolean targetAfford   = plugin.getEconomyManager().hasBalance(target, cost);
+            if (!requesterAfford || !targetAfford) {
+                Player poor  = !requesterAfford ? requester : target;
+                Player other = !requesterAfford ? target    : requester;
+                poor.sendMessage(plugin.msg("prefix") +
+                        String.format(plugin.msgCfg("player-tp-no-bops-self"), cost));
+                other.sendMessage(plugin.msg("prefix") +
+                        String.format(plugin.msgCfg("player-tp-no-bops-other"), poor.getName(), cost));
+                return;
+            }
+        }
+
+        requester.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("player-tp-request-accepted-requester"), targetName, standStill));
+        target.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("player-tp-request-accepted-target"), standStill));
+        if (cost > 0) {
+            requester.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("player-tp-bops-notice"), cost));
+            target.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("player-tp-bops-notice"), cost));
+        }
+
+        WaypointManager.PlayerTeleportSession session = new WaypointManager.PlayerTeleportSession(
+                requesterId, targetId, requesterName, targetName);
+        plugin.getWaypointManager().setPlayerSession(requesterId, targetId, session);
+
+        int[] remaining = {standStill};
+        int countdownTaskId = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (!plugin.getWaypointManager().hasPlayerSession(requesterId)) return;
+            if (remaining[0] > 0) {
+                Player r = Bukkit.getPlayer(requesterId);
+                Player t = Bukkit.getPlayer(targetId);
+                if (r != null) r.sendActionBar(Component.text("Teleporting to ")
+                        .color(NamedTextColor.GREEN)
+                        .append(Component.text(targetName).color(NamedTextColor.AQUA))
+                        .append(Component.text(" in ").color(NamedTextColor.GREEN))
+                        .append(Component.text(remaining[0] + "s").color(NamedTextColor.WHITE).decorate(TextDecoration.BOLD))
+                        .append(Component.text("... Don't move!").color(NamedTextColor.YELLOW)));
+                if (t != null) t.sendActionBar(Component.text(requesterName)
+                        .color(NamedTextColor.AQUA)
+                        .append(Component.text(" is teleporting to you in ").color(NamedTextColor.GREEN))
+                        .append(Component.text(remaining[0] + "s").color(NamedTextColor.WHITE).decorate(TextDecoration.BOLD))
+                        .append(Component.text("... Don't move!").color(NamedTextColor.YELLOW)));
+                remaining[0]--;
+            }
+        }, 0L, 20L).getTaskId();
+        session.countdownTaskId = countdownTaskId;
+
+        int teleportTaskId = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!plugin.getWaypointManager().hasPlayerSession(requesterId)) return;
+            plugin.getWaypointManager().clearPlayerSession(requesterId, targetId);
+            if (session.countdownTaskId != -1) plugin.getServer().getScheduler().cancelTask(session.countdownTaskId);
+            executePlayerTeleport(session);
+        }, standStill * 20L).getTaskId();
+        session.teleportTaskId = teleportTaskId;
+    }
+
+    public void denyPlayerTeleportRequest(Player target, Player requester) {
+        UUID requesterId = requester.getUniqueId();
+        int expiryTask = plugin.getWaypointManager().getPendingPlayerRequestTaskId(requesterId);
+        if (expiryTask != -1) plugin.getServer().getScheduler().cancelTask(expiryTask);
+        plugin.getWaypointManager().clearPendingPlayerRequest(requesterId);
+        plugin.getWaypointManager().clearPendingPlayerRequestTaskId(requesterId);
+        plugin.getWaypointManager().clearPendingPlayerRequestExpiry(requesterId);
+
+        target.sendMessage(plugin.msg("prefix") + plugin.msgCfg("player-tp-request-denied-target"));
+        requester.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("player-tp-request-denied-requester"), target.getName()));
+    }
+
+    /**
+     * Cancels an active player teleport session. Called by TeleportCancelListener.
+     * movedAway=true means the canceller moved; false means they disconnected or changed world.
+     */
+    public void cancelPlayerSession(WaypointManager.PlayerTeleportSession session, UUID cancellerUuid, boolean movedAway) {
+        if (session.teleportTaskId != -1) plugin.getServer().getScheduler().cancelTask(session.teleportTaskId);
+        if (session.countdownTaskId != -1) plugin.getServer().getScheduler().cancelTask(session.countdownTaskId);
+        plugin.getWaypointManager().clearPlayerSession(session.requesterId, session.targetId);
+
+        boolean cancellerIsRequester = cancellerUuid.equals(session.requesterId);
+        String cancellerName = cancellerIsRequester ? session.requesterName : session.targetName;
+        UUID otherId = cancellerIsRequester ? session.targetId : session.requesterId;
+
+        Player canceller = Bukkit.getPlayer(cancellerUuid);
+        Player other = Bukkit.getPlayer(otherId);
+
+        if (canceller != null && canceller.isOnline()) {
+            canceller.sendActionBar(Component.empty());
+            if (movedAway) canceller.sendMessage(plugin.msg("prefix") + plugin.msgCfg("player-tp-cancelled-moved"));
+        }
+        if (other != null && other.isOnline()) {
+            other.sendActionBar(Component.empty());
+            if (movedAway) {
+                other.sendMessage(plugin.msg("prefix") +
+                        String.format(plugin.msgCfg("player-tp-cancelled-other-moved"), cancellerName));
+            } else {
+                other.sendMessage(plugin.msg("prefix") +
+                        String.format(plugin.msgCfg("player-tp-cancelled-disconnect"), cancellerName));
+            }
+        }
+    }
+
+    private void executePlayerTeleport(WaypointManager.PlayerTeleportSession session) {
+        Player requester = Bukkit.getPlayer(session.requesterId);
+        Player target = Bukkit.getPlayer(session.targetId);
+
+        if (requester == null || !requester.isOnline()) {
+            if (target != null && target.isOnline()) {
+                target.sendActionBar(Component.empty());
+                target.sendMessage(plugin.msg("prefix") +
+                        String.format(plugin.msgCfg("player-tp-cancelled-disconnect"), session.requesterName));
+            }
+            return;
+        }
+        if (target == null || !target.isOnline()) {
+            requester.sendActionBar(Component.empty());
+            requester.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("player-tp-cancelled-disconnect"), session.targetName));
+            return;
+        }
+
+        requester.sendActionBar(Component.empty());
+        target.sendActionBar(Component.empty());
+
+        int cost = plugin.getConfig().getInt("player-teleport.cost-bops", 100);
+
+        Location dest = findSafe(target.getLocation());
+        if (dest == null) dest = target.getLocation();
+
+        requester.teleport(dest);
+
+        requester.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("player-tp-success-requester"), session.targetName));
+        target.sendMessage(plugin.msg("prefix") +
+                String.format(plugin.msgCfg("player-tp-success-target"), session.requesterName));
+
+        // Charge both players after a successful teleport
+        if (cost > 0 && plugin.getEconomyManager().isEnabled()) {
+            boolean rCharged = plugin.getEconomyManager().charge(requester, cost);
+            if (!rCharged) {
+                plugin.getLogger().warning("[Pinpoint] Post-teleport Bops charge FAILED for "
+                        + session.requesterName + " (balance too low after countdown). No one was charged.");
+                requester.sendMessage(plugin.msg("prefix")
+                        + "§cBops charge failed — you ran out during the countdown. No Bops were taken.");
+                target.sendMessage(plugin.msg("prefix")
+                        + "§cBops charge failed — " + session.requesterName + " ran out during the countdown. No Bops were taken.");
+                return;
+            }
+            boolean tCharged = plugin.getEconomyManager().charge(target, cost);
+            if (!tCharged) {
+                // Refund the requester so neither player loses Bops
+                plugin.getEconomyManager().deposit(requester, cost);
+                plugin.getLogger().warning("[Pinpoint] Post-teleport Bops charge FAILED for "
+                        + session.targetName + " (balance too low after countdown). Requester refunded.");
+                requester.sendMessage(plugin.msg("prefix")
+                        + "§cBops charge failed — " + session.targetName + " ran out during the countdown. No Bops were taken.");
+                target.sendMessage(plugin.msg("prefix")
+                        + "§cBops charge failed — you ran out during the countdown. No Bops were taken.");
+                return;
+            }
+            requester.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("player-tp-bops-charged"), cost));
+            target.sendMessage(plugin.msg("prefix") +
+                    String.format(plugin.msgCfg("player-tp-bops-charged"), cost));
+        }
+
+        plugin.getWaypointManager().setRecallCooldown(session.requesterId);
+
+        if (!requester.isInvulnerable()) {
+            requester.setInvulnerable(true);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (requester.isOnline()) requester.setInvulnerable(false);
+            }, 100L);
         }
     }
 

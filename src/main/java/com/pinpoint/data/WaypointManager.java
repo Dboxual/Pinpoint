@@ -13,9 +13,6 @@ public class WaypointManager {
     private final WaypointStorage storage;
     private final Map<UUID, Waypoint> waypoints = new HashMap<>();
 
-    // Pending invites: invitee UUID -> invite data
-    private final Map<UUID, TeleportInvite> pendingInvites = new HashMap<>();
-
     // Pending name inputs: player UUID -> pending waypoint location
     private final Map<UUID, Location> pendingNaming = new HashMap<>();
 
@@ -38,6 +35,18 @@ public class WaypointManager {
 
     // Pending delayed teleports: player UUID -> PendingTeleport
     private final Map<UUID, PendingTeleport> pendingTeleports = new HashMap<>();
+
+    // Pending landmark creation: admin UUID -> landmark name
+    private final Map<UUID, String> pendingLandmarkCreation = new HashMap<>();
+
+    // Pending player teleport requests: requester UUID -> target UUID
+    private final Map<UUID, UUID> pendingPlayerRequests = new HashMap<>();
+    private final Map<UUID, Integer> pendingPlayerRequestTaskIds = new HashMap<>();
+    // Expiry timestamp (epoch ms) for each pending request — used by GUI to show time remaining
+    private final Map<UUID, Long> pendingPlayerRequestExpiry = new HashMap<>();
+
+    // Active player teleport sessions — both requester and target UUID key into the same session
+    private final Map<UUID, PlayerTeleportSession> activePlayerSessions = new HashMap<>();
 
     public WaypointManager(PinpointPlugin plugin, WaypointStorage storage) {
         this.plugin = plugin;
@@ -62,6 +71,17 @@ public class WaypointManager {
         locationIndex.put(locationKey(wp), id);
         storage.saveWaypoint(wp);
         return wp;
+    }
+
+    public Waypoint createLandmark(String name, Location location) {
+        UUID id = UUID.randomUUID();
+        double cost = plugin.getConfig().getDouble("landmarks.teleport.cost", 0);
+        Waypoint landmark = new Waypoint(id, name, Waypoint.LANDMARK_OWNER_UUID, "", location, false, cost);
+        landmark.setType(WaypointType.LANDMARK);
+        waypoints.put(id, landmark);
+        locationIndex.put(locationKey(landmark), id);
+        storage.saveWaypoint(landmark);
+        return landmark;
     }
 
     public void saveWaypoint(Waypoint wp) {
@@ -104,6 +124,27 @@ public class WaypointManager {
     public List<Waypoint> getOwnedWaypoints(UUID playerUuid) {
         return waypoints.values().stream()
                 .filter(wp -> wp.isOwner(playerUuid))
+                .sorted(Comparator.comparing(Waypoint::getName))
+                .collect(Collectors.toList());
+    }
+
+    public List<Waypoint> getInvitedWaypoints(UUID playerUuid) {
+        return waypoints.values().stream()
+                .filter(wp -> !wp.isOwner(playerUuid) && !wp.isPublic() && wp.isInvited(playerUuid))
+                .sorted(Comparator.comparing(Waypoint::getName))
+                .collect(Collectors.toList());
+    }
+
+    public List<Waypoint> getPublicWaypoints(UUID playerUuid) {
+        return waypoints.values().stream()
+                .filter(wp -> wp.getType() != WaypointType.LANDMARK && wp.isPublic() && !wp.isOwner(playerUuid))
+                .sorted(Comparator.comparing(Waypoint::getName))
+                .collect(Collectors.toList());
+    }
+
+    public List<Waypoint> getLandmarks() {
+        return waypoints.values().stream()
+                .filter(wp -> wp.getType() == WaypointType.LANDMARK)
                 .sorted(Comparator.comparing(Waypoint::getName))
                 .collect(Collectors.toList());
     }
@@ -227,24 +268,6 @@ public class WaypointManager {
         return plugin.getConfig().getInt("settings.max-waypoints-per-player", 10);
     }
 
-    // --- Teleport invites ---
-
-    public void createInvite(UUID inviter, UUID invitee, UUID waypointId, UUID orbId) {
-        pendingInvites.put(invitee, new TeleportInvite(inviter, invitee, waypointId, orbId));
-    }
-
-    public TeleportInvite getInvite(UUID invitee) {
-        return pendingInvites.get(invitee);
-    }
-
-    public boolean hasPendingInvite(UUID invitee) {
-        return pendingInvites.containsKey(invitee);
-    }
-
-    public void removeInvite(UUID invitee) {
-        pendingInvites.remove(invitee);
-    }
-
     public Collection<Waypoint> getAllWaypoints() {
         return Collections.unmodifiableCollection(waypoints.values());
     }
@@ -255,6 +278,51 @@ public class WaypointManager {
     public PendingTeleport getPendingTeleport(UUID playerUuid) { return pendingTeleports.get(playerUuid); }
     public boolean hasPendingTeleport(UUID playerUuid) { return pendingTeleports.containsKey(playerUuid); }
     public void clearPendingTeleport(UUID playerUuid) { pendingTeleports.remove(playerUuid); }
+
+    // --- Pending landmark creation ---
+
+    public void setPendingLandmarkCreation(UUID playerUuid, String name) { pendingLandmarkCreation.put(playerUuid, name); }
+    public String getPendingLandmarkCreation(UUID playerUuid) { return pendingLandmarkCreation.get(playerUuid); }
+    public boolean hasPendingLandmarkCreation(UUID playerUuid) { return pendingLandmarkCreation.containsKey(playerUuid); }
+    public void clearPendingLandmarkCreation(UUID playerUuid) { pendingLandmarkCreation.remove(playerUuid); }
+
+    // --- Pending player teleport requests ---
+
+    public void setPendingPlayerRequest(UUID requesterId, UUID targetId) { pendingPlayerRequests.put(requesterId, targetId); }
+    public UUID getPendingPlayerRequest(UUID requesterId) { return pendingPlayerRequests.get(requesterId); }
+    public boolean hasPendingPlayerRequest(UUID requesterId) { return pendingPlayerRequests.containsKey(requesterId); }
+    public void clearPendingPlayerRequest(UUID requesterId) { pendingPlayerRequests.remove(requesterId); }
+
+    public void setPendingPlayerRequestTaskId(UUID requesterId, int taskId) { pendingPlayerRequestTaskIds.put(requesterId, taskId); }
+    public int getPendingPlayerRequestTaskId(UUID requesterId) { return pendingPlayerRequestTaskIds.getOrDefault(requesterId, -1); }
+    public void clearPendingPlayerRequestTaskId(UUID requesterId) { pendingPlayerRequestTaskIds.remove(requesterId); }
+
+    public void setPendingPlayerRequestExpiry(UUID requesterId, long expiryMs) { pendingPlayerRequestExpiry.put(requesterId, expiryMs); }
+    public long getPendingPlayerRequestExpiry(UUID requesterId) { return pendingPlayerRequestExpiry.getOrDefault(requesterId, 0L); }
+    public void clearPendingPlayerRequestExpiry(UUID requesterId) { pendingPlayerRequestExpiry.remove(requesterId); }
+
+    /** Returns the UUID of the first requester who has a pending request targeting {@code targetId}, or null. */
+    public UUID getIncomingRequest(UUID targetId) {
+        for (Map.Entry<UUID, UUID> entry : pendingPlayerRequests.entrySet()) {
+            if (targetId.equals(entry.getValue())) return entry.getKey();
+        }
+        return null;
+    }
+
+    // --- Active player teleport sessions ---
+
+    public void setPlayerSession(UUID requesterId, UUID targetId, PlayerTeleportSession session) {
+        activePlayerSessions.put(requesterId, session);
+        activePlayerSessions.put(targetId, session);
+    }
+
+    public PlayerTeleportSession getPlayerSession(UUID playerUuid) { return activePlayerSessions.get(playerUuid); }
+    public boolean hasPlayerSession(UUID playerUuid) { return activePlayerSessions.containsKey(playerUuid); }
+
+    public void clearPlayerSession(UUID requesterId, UUID targetId) {
+        activePlayerSessions.remove(requesterId);
+        activePlayerSessions.remove(targetId);
+    }
 
     public static class PendingTeleport {
         public final UUID playerId;
@@ -270,20 +338,20 @@ public class WaypointManager {
         }
     }
 
-    public static class TeleportInvite {
-        public final UUID inviterUuid;
-        public final UUID inviteeUuid;
-        public final UUID waypointId;
-        public final UUID orbId;
-        public final long createdAt;
-        public boolean accepted = false;
+    public static class PlayerTeleportSession {
+        public final UUID requesterId;
+        public final UUID targetId;
+        public final String requesterName;
+        public final String targetName;
+        public int teleportTaskId = -1;
+        public int countdownTaskId = -1;
 
-        public TeleportInvite(UUID inviterUuid, UUID inviteeUuid, UUID waypointId, UUID orbId) {
-            this.inviterUuid = inviterUuid;
-            this.inviteeUuid = inviteeUuid;
-            this.waypointId = waypointId;
-            this.orbId = orbId;
-            this.createdAt = System.currentTimeMillis();
+        public PlayerTeleportSession(UUID requesterId, UUID targetId, String requesterName, String targetName) {
+            this.requesterId = requesterId;
+            this.targetId = targetId;
+            this.requesterName = requesterName;
+            this.targetName = targetName;
         }
     }
+
 }

@@ -2,6 +2,7 @@ package com.pinpoint;
 
 import com.pinpoint.commands.PartyCommand;
 import com.pinpoint.commands.WaypointCommand;
+import com.pinpoint.data.CompassDataManager;
 import com.pinpoint.data.PartyManager;
 import com.pinpoint.data.PartyStorage;
 import com.pinpoint.data.WaypointManager;
@@ -15,6 +16,7 @@ import com.pinpoint.listeners.BlockBreakListener;
 import com.pinpoint.listeners.BlockPlaceListener;
 import com.pinpoint.listeners.ChatInputListener;
 import com.pinpoint.listeners.PartyListener;
+import com.pinpoint.listeners.NewcomerListener;
 import com.pinpoint.listeners.TeleportCancelListener;
 import com.pinpoint.listeners.WaypointInteractListener;
 import com.pinpoint.util.TeleportHelper;
@@ -26,6 +28,7 @@ public class PinpointPlugin extends JavaPlugin {
     private WaypointManager waypointManager;
     private PartyStorage partyStorage;
     private PartyManager partyManager;
+    private CompassDataManager compassDataManager;
     private ItemManager itemManager;
     private EconomyManager economyManager;
     private GuiManager guiManager;
@@ -56,6 +59,9 @@ public class PinpointPlugin extends JavaPlugin {
             partyManager.loadParty(party);
         }
         getLogger().info("Loaded " + partyManager.getAllParties().size() + " parties.");
+
+        compassDataManager = new CompassDataManager(this);
+        compassDataManager.load();
 
         itemManager = new ItemManager(this);
         itemManager.registerRecipes();
@@ -92,6 +98,7 @@ public class PinpointPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TeleportCancelListener(this), this);
         getServer().getPluginManager().registerEvents(chatInputListener, this);
         getServer().getPluginManager().registerEvents(new PartyListener(this), this);
+        getServer().getPluginManager().registerEvents(new NewcomerListener(this), this);
 
         hologramManager.spawnAll();
         hologramManager.startVisibilityTask();
@@ -118,6 +125,7 @@ public class PinpointPlugin extends JavaPlugin {
         for (com.pinpoint.data.Party party : partyStorage.loadAll()) {
             partyManager.loadParty(party);
         }
+        compassDataManager.load();
         economyManager.setup();
         if (hologramManager != null) {
             hologramManager.spawnAll();
@@ -135,6 +143,7 @@ public class PinpointPlugin extends JavaPlugin {
         return getConfig().getString("messages." + key, "").replace("&", "§");
     }
 
+    public CompassDataManager getCompassDataManager() { return compassDataManager; }
     public HologramManager getHologramManager()    { return hologramManager; }
     public WaypointManager getWaypointManager()   { return waypointManager; }
     public WaypointStorage getWaypointStorage()    { return waypointStorage; }

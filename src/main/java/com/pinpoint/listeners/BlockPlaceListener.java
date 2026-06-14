@@ -21,8 +21,45 @@ public class BlockPlaceListener implements Listener {
         Player player = event.getPlayer();
         ItemStack item = event.getItemInHand();
 
-        if (!plugin.getItemManager().isWaypointBlockItem(item)) return;
+        boolean isLandmarkBlock = plugin.getItemManager().isLandmarkBlock(item);
+        boolean isPinpointBlock = plugin.getItemManager().isWaypointBlockItem(item);
 
+        if (!isLandmarkBlock && !isPinpointBlock) return;
+
+        // ── Landmark Block path ──────────────────────────────────────────────
+        if (isLandmarkBlock) {
+            if (!player.hasPermission("pinpoint.admin.landmark.create")) {
+                String msg = plugin.getConfig().getString(
+                        "landmarks.block.no-permission-message",
+                        "&cYou do not have permission to place Landmark Blocks.");
+                player.sendMessage(plugin.msg("prefix") + msg.replace("&", "§"));
+                event.setCancelled(true);
+                return;
+            }
+            if (!plugin.getWaypointManager().hasPendingLandmarkCreation(player.getUniqueId())) {
+                String msg = plugin.getConfig().getString(
+                        "landmarks.block.setup-required-message",
+                        "&cUse /wp landmark create <name> before placing a Landmark Block.");
+                player.sendMessage(plugin.msg("prefix") + msg.replace("&", "§"));
+                event.setCancelled(true);
+                return;
+            }
+            if (!plugin.getConfig().getBoolean("landmarks.enabled", true)) {
+                player.sendMessage(plugin.msg("prefix") + "§cLandmarks are disabled in config.");
+                plugin.getWaypointManager().clearPendingLandmarkCreation(player.getUniqueId());
+                event.setCancelled(true);
+                return;
+            }
+            String name = plugin.getWaypointManager().getPendingLandmarkCreation(player.getUniqueId());
+            plugin.getWaypointManager().clearPendingLandmarkCreation(player.getUniqueId());
+            com.pinpoint.data.Waypoint landmark = plugin.getWaypointManager()
+                    .createLandmark(name, event.getBlock().getLocation());
+            plugin.getHologramManager().spawnHologram(landmark);
+            player.sendMessage(plugin.msg("prefix") + "§aLandmark '§b" + name + "§a' created!");
+            return;
+        }
+
+        // ── Normal Pinpoint Block path ────────────────────────────────────────
         if (!player.hasPermission("waypoint.use")) {
             player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
             event.setCancelled(true);
@@ -43,7 +80,6 @@ public class BlockPlaceListener implements Listener {
             return;
         }
 
-        // Block placed — start naming flow using the block's location
         plugin.getWaypointManager().setPendingNaming(player.getUniqueId(), event.getBlock().getLocation());
         player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("name-prompt"));
         plugin.getChatInputListener().schedulePendingNamingTimeout(player);

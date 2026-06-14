@@ -1,0 +1,2598 @@
+Pinpoint — Handoff Document
+===========================
+Primary context document for Claude ↔ User ↔ ChatGPT handoff.
+Newest entries at the top. See changelog.txt for version history only.
+
+================================================================================
+ENTRY — 2026-06-13 (Unified waypoint teleport delay — v1.3.34)
+================================================================================
+
+Version: 1.3.34
+Jar: /home/pi/Plugins/Pinpoint/build/libs/Pinpoint-1.3.34.jar
+
+Files Changed:
+  MOD  build.gradle.kts
+  MOD  src/main/resources/plugin.yml
+  MOD  src/main/resources/config.yml
+  MOD  changelog.txt
+  MOD  chatgpt.txt
+
+--- DESIGN ---
+All Waystone/Landmark/Pinpoint destination teleports now always use a 5-second countdown,
+regardless of whether triggered via compass/GUI or by right-clicking a placed block.
+
+Previously:
+  compass/GUI path → compass-delay-seconds (default 10s)
+  block right-click path → block-delay-seconds (5s)
+
+Now:
+  Both compass-delay-seconds and block-delay-seconds default to 5.
+
+Player-to-player teleport is completely separate (stand-still-seconds, default 10s) and
+was not touched.
+
+--- FEE SAFETY ---
+Bops are charged AFTER player.teleport() succeeds in TeleportHelper.doTeleport().
+If the countdown is cancelled (player moves, takes damage, quits), the Bukkit task is
+cancelled and doTeleport() is never called — so no Bops are ever charged on a failed teleport.
+This was already correct and remains unchanged.
+
+--- WHAT WAS NOT CHANGED ---
+- TeleportHelper.java — no logic changes, only config default values changed
+- GUI/invite behavior — untouched
+- Player-to-player teleport flow — untouched
+- Message strings — teleport-countdown uses %d so it already shows "5s" automatically
+
+--- TESTING CHECKLIST ---
+1. Teleport to a Landmark/Waystone via compass GUI — confirm 5-second countdown in action bar.
+2. Right-click a placed Pinpoint block — confirm 5-second countdown in action bar.
+3. Teleport to a fee-bearing waypoint (set cost > 0) — confirm Bops deducted only after arriving,
+   not at countdown start.
+4. Move or take damage during a 5s countdown — confirm "Teleport cancelled" message and no Bops taken.
+5. Send a player-to-player /tprequest — confirm it still uses its own stand-still-seconds (10s)
+   and its own action bar messages.
+6. All messages referencing cost say "Bops", not "money" or "bits".
+
+================================================================================
+ENTRY — 2026-06-12 (Context-aware teleport delay — v1.3.33)
+================================================================================
+
+Version: 1.3.33
+Jar: /home/pi/Plugins/Pinpoint/build/libs/Pinpoint-1.3.33.jar
+
+Files Changed:
+  MOD  build.gradle.kts
+  MOD  src/main/resources/plugin.yml
+  MOD  src/main/resources/config.yml
+  MOD  src/main/java/com/pinpoint/util/TeleportHelper.java
+  MOD  src/main/java/com/pinpoint/gui/GuiManager.java
+  MOD  changelog.txt
+  MOD  chatgpt.txt
+
+--- DESIGN ---
+Teleport delay is now determined by HOW the player initiated travel:
+
+  Physical block right-click (placed Pinpoint or Landmark block):
+    → teleport.block-delay-seconds  (default 5)
+
+  Pinpoint Compass right-click or any GUI tab navigation:
+    → teleport.compass-delay-seconds  (default 10)
+
+Both delays apply equally to normal Pinpoints AND Landmarks.
+
+--- ROOT CAUSE OF THE PREVIOUS SILENT BUG ---
+GuiManager.openHubGui(player, focusedWaypointId, fromBlock) accepted a fromBlock=true
+argument from WaypointInteractListener when a player right-clicked a placed block, but
+the method body completely ignored that parameter and always opened the GUI in compass mode.
+As a result, teleportFromBlock() (5s path) was dead code through the GUI flow.
+
+--- HOW IT WAS FIXED ---
+1. GuiManager gained a per-player Map<UUID, Boolean> playerFromBlock field.
+2. openHubGui() now stores playerFromBlock.put(uuid, fromBlock) at entry.
+3. onInventoryClose() clears playerFromBlock.remove(uuid) on full GUI close (not on
+   sub-GUI navigation, so the flag survives menu-to-menu navigation).
+4. handleWaypointClick() looks up the stored flag and passes it to:
+     openOwnerViewGui(player, wp, fromBlock)  — new param
+     openUseGui(player, wp, fromBlock)        — already had param, now correct
+     openLandmarkUseGui(player, wp, fromBlock)  — new param
+     openLandmarkManageGui(player, wp, fromBlock)  — new param
+5. All "Teleport Here" handlers in those GUIs now dispatch to teleportFromBlock()
+   (5s) when fromBlock=true, and teleport() (10s) otherwise.
+6. openConfirmLandmarkDeleteGui() gained a fromBlock param so "Cancel" can return
+   to openLandmarkManageGui() with the correct context.
+
+--- CONFIG CHANGES ---
+Old keys removed:
+  settings.waypoint-pearl-teleport-delay-seconds
+  settings.waypoint-block-teleport-delay-seconds
+  landmarks.teleport.delay-seconds
+
+New unified section added at the top of config.yml:
+  teleport:
+    compass-delay-seconds: 10
+    block-delay-seconds: 5
+
+landmarks.teleport now has a comment pointing to the unified section.
+
+--- UNCHANGED ---
+- Player-to-player teleport uses player-teleport.stand-still-seconds (default 10).
+- Movement cancel, Bops charging, invincibility window, cooldown all unchanged.
+- teleportGroupMember() and partyFollow() are unchanged (always 5s group countdown).
+
+================================================================================
+ENTRY — 2026-06-11 (Player teleport fixes — v1.3.32)
+================================================================================
+
+Version: 1.3.32
+Jar: /home/pi/Plugins/Pinpoint/build/libs/Pinpoint-1.3.32.jar
+
+Files Changed:
+  MOD  build.gradle.kts
+  MOD  src/main/resources/plugin.yml
+  MOD  src/main/resources/config.yml
+  MOD  src/main/java/com/pinpoint/util/TeleportHelper.java
+  MOD  src/main/java/com/pinpoint/gui/GuiManager.java
+  MOD  changelog.txt
+  MOD  chatgpt.txt
+
+--- BUGS FIXED ---
+1. Sender received two chat messages when clicking a player in the Players tab
+   (player-tp-request-sent + player-tp-request-expires-in). Both removed. The sender
+   is now completely silent on request send. Only error messages (player offline,
+   already a request pending) are shown to the sender.
+
+2. renderPlayersContent was calling plugin.getConfig().getDouble("settings.player-teleport-cost")
+   — a key deleted in v1.3.31. It returned the default 100.0 but then formatted it via
+   EconomyManager.format() which may produce garbled currency text. Fixed to read the
+   correct key player-teleport.cost-bops and display "N Bops each" literally.
+
+3. player-teleport.cost-bits key renamed to player-teleport.cost-bops. All code updated.
+
+--- DESIGN CHANGES ---
+Currency: All player-to-player teleport text now says "Bops" explicitly. EconomyManager
+.format() is NOT used for player-to-player teleport display — cost is shown as integer
+Bops. Normal waypoint fees still use EconomyManager.format() (Vault currency unchanged).
+
+Balance check timing: Moved from post-teleport to pre-countdown (at accept time).
+Both players must have cost-bops Bops before the 10s countdown starts. If either is
+short, the accept is rejected with clear per-player messages and no countdown starts.
+
+Post-teleport charge: Still happens after teleport completes. Edge-case failure handling
+added: if a player spent Bops during the countdown and can't be charged, the server logs
+a WARNING and neither player is charged (requester refunded if target's charge fails).
+
+--- CONFIG CHANGES ---
+player-teleport:
+  cost-bits → cost-bops  (renamed; same value 100)
+
+New messages (replacing old cost/funds messages):
+  player-tp-bops-notice     — shown at accept time: "Cost: %d Bops each on success."
+  player-tp-no-bops-self    — shown to the broke player: "You don't have enough Bops (%d needed)."
+  player-tp-no-bops-other   — shown to the other player: "%s doesn't have enough Bops (%d needed)."
+  player-tp-bops-charged    — shown after successful charge: "%d Bops deducted from each of you."
+
+Removed messages (no longer used):
+  player-tp-request-sent      (sender gets nothing on success)
+  player-tp-cost-notice       (replaced by player-tp-bops-notice)
+  player-tp-insufficient-funds (check moved to pre-countdown; new messages cover it)
+  player-tp-charged           (replaced by player-tp-bops-charged)
+
+================================================================================
+ENTRY — 2026-06-10 (Landmark = ESO Wayshrine travel terminal — v1.3.29)
+================================================================================
+
+Version: 1.3.29
+Jar: /home/pi/Plugins/Pinpoint/build/libs/Pinpoint-1.3.29.jar
+
+Files Changed:
+  MOD  src/main/java/com/pinpoint/gui/GuiManager.java
+  MOD  build.gradle.kts
+  MOD  src/main/resources/plugin.yml
+  MOD  changelog.txt
+  MOD  chatgpt.txt
+
+--- DESIGN GOAL ---
+The Pinpoint system is inspired by Elder Scrolls Online Wayshrines.
+A Landmark is a travel terminal. The player is already standing at it.
+Offering "Teleport Here" when they right-click makes no sense — they are
+physically touching the destination already.
+Landmarks should act as access points into the full Pinpoint travel network.
+
+--- PREVIOUS BEHAVIOR (v1.3.28) ---
+Right-clicking a Landmark Block opened the full hub GUI, but forced the
+Landmarks category tab to be active. When the player then clicked any Landmark
+entry in that list (including the one they were standing at), they were taken to
+openLandmarkUseGui which presented "Teleport Here" — a screen specific to a
+single Landmark. This violated the travel terminal design.
+
+--- NEW BEHAVIOR (v1.3.29) ---
+Right-clicking a Landmark Block now opens the full Pinpoint travel network at
+the player's last-visited category (defaulting to My Pinpoints / OWNED on first
+open). The player immediately sees the full tab bar:
+  My Pinpoints | Invited | Public | Players | Landmarks
+No Landmark-specific screen appears first. The Landmark is an access point, not
+a destination.
+
+--- CODE CHANGE ---
+File: GuiManager.java — openHubGui()
+The LANDMARK branch inside the fromBlock+focusedWaypointId guard was changed
+from:
+    playerCategory.put(player.getUniqueId(), Category.LANDMARKS);
+    renderCategoryGui(player, Category.LANDMARKS, getCategoryPage(...));
+To:
+    Category cat = playerCategory.getOrDefault(player.getUniqueId(), Category.OWNED);
+    renderCategoryGui(player, cat, getCategoryPage(player.getUniqueId(), cat));
+
+This is a single-path change with zero impact on normal Pinpoint blocks or any
+data layer.
+
+--- ADMIN BEHAVIOR ---
+Admin management is fully preserved. Admins (pinpoint.admin.landmark) can access
+the Landmark Manage GUI by navigating to the Landmarks tab in the hub and
+clicking any Landmark entry — handleWaypointClick() routes admins to
+openLandmarkManageGui() as before.
+
+--- COMPATIBILITY NOTES ---
+- waypoints.yml: no changes, all LANDMARK entries read/write identically.
+- Hologram system: unchanged.
+- PDC keys: unchanged (pinpoint:landmark_block, pinpoint:waypoint_block).
+- Compass distribution: unchanged.
+- Teleport implementation: unchanged.
+- Bops costs: unchanged.
+- Waypoint limits: unchanged.
+- Normal Pinpoint Block interaction: unchanged.
+
+--- TESTING CHECKLIST ---
+1.  Create or locate a Landmark.
+2.  Right-click the Landmark Block.
+3.  Confirm NO Landmark-specific "Teleport Here" screen appears.
+4.  Confirm the full Pinpoint network opens immediately.
+5.  Confirm My Pinpoints (OWNED) is the active tab on first open.
+6.  Confirm subsequent opens remember the last-visited category.
+7.  Confirm My Pinpoints can be browsed and teleported to.
+8.  Confirm Public category works.
+9.  Confirm Invited category works.
+10. Confirm Players category works.
+11. Confirm Landmarks category works (still accessible as a tab).
+12. Confirm clicking a Landmark from the Landmarks tab as admin opens manage GUI.
+13. Confirm Landmark creation still works.
+14. Confirm Landmark deletion still works (from admin manage GUI).
+15. Confirm Landmark holograms still appear.
+16. Confirm normal Pinpoint blocks still open Manage/Use GUI as appropriate.
+17. Confirm no waypoint data is lost.
+
+--- BUILD RESULT ---
+Build command: ./gradlew build
+Status: BUILD SUCCESSFUL
+Jar: build/libs/Pinpoint-1.3.29.jar (111K)
+
+================================================================================
+ENTRY — 2026-06-10 (Landmark Block opens full Pinpoint GUI — v1.3.28)
+================================================================================
+
+Version: 1.3.28
+Jar: /home/pi/Plugins/Pinpoint/build/libs/Pinpoint-1.3.28.jar
+
+Files Changed:
+  MOD  src/main/java/com/pinpoint/gui/GuiManager.java
+  MOD  build.gradle.kts
+  MOD  src/main/resources/plugin.yml
+  MOD  changelog.txt
+  MOD  chatgpt.txt
+
+--- FEATURE: Landmark Block opens full Pinpoint GUI ---
+
+RIGHT-CLICK BEHAVIOR — LANDMARK BLOCK
+  When a player right-clicks a placed Landmark Block (PDC: pinpoint:landmark_block):
+  - openHubGui is called with fromBlock=true and the landmark's UUID.
+  - The landmark branch now sets playerCategory to LANDMARKS and calls
+    renderCategoryGui(player, LANDMARKS, page) instead of openLandmarkUseGui.
+  - The player sees the full Pinpoint hub starting at the Landmarks category.
+  - All bottom-nav category tabs are available: My Pinpoints, Invited, Public,
+    Players, Landmarks.
+  - The player can switch categories and teleport to their own Pinpoints normally.
+
+RIGHT-CLICK BEHAVIOR — NORMAL PINPOINT BLOCK
+  Completely unchanged.
+  - Owner → openManageGui. Non-owner → openUseGui.
+
+LANDMARK ENTRY CLICK (inside Landmarks category list)
+  handleWaypointClick now dispatches based on permission:
+  - Player without pinpoint.admin.landmark → openLandmarkUseGui (teleport + back).
+  - Player with pinpoint.admin.landmark   → openLandmarkManageGui (teleport + delete + back).
+
+openLandmarkManageGui (NEW — admin only)
+  Inventory title: "Manage: <landmark name>" (GOLD).
+  Slot 13: Landmark info icon (config material, AQUA name, fee lore).
+  Slot 11: Teleport Here → closeGui + teleportToLandmark.
+  Slot 15: Delete Landmark → checks pinpoint.admin.landmark.delete permission,
+           then opens openConfirmLandmarkDeleteGui.
+  Slot 22: Back → renderCategoryGui(LANDMARKS, current page).
+
+openConfirmLandmarkDeleteGui (NEW — admin only)
+  Inventory title: "Delete: <name>?" (RED).
+  Slot 13: Landmark icon info item.
+  Slot 11: Cancel → back to openLandmarkManageGui.
+  Slot 15: Confirm Delete → removes hologram, deletes waypoint from manager/storage,
+           checks landmarks.block.material from config to remove the physical block,
+           closes GUI, sends success message.
+
+ADMIN PERMISSION GATES
+  pinpoint.admin.landmark         — gate for openLandmarkManageGui access.
+  pinpoint.admin.landmark.delete  — gate for the actual delete confirm action.
+
+COMPATIBILITY NOTES
+  - PDC key separation unchanged: pinpoint:landmark_block vs pinpoint:waypoint_block.
+  - Landmark entries in waypoints.yml load identically (type=LANDMARK).
+  - Landmark creation does not count toward player waypoint limits.
+  - Compass distribution and recipe unchanged.
+  - No decorative glass panes added.
+  - openLandmarkUseGui still exists and is used for non-admin landmark clicks.
+
+TESTING CHECKLIST
+  1. Right-click normal Pinpoint Block as owner → Manage GUI opens.
+  2. Right-click normal Pinpoint Block as non-owner → Use GUI opens.
+  3. Right-click Landmark Block as normal player → full hub opens at Landmarks tab.
+  4. From Landmark-opened hub, switch to My Pinpoints → teleport to own waypoint.
+  5. From Landmark-opened hub, switch to Public → see public waypoints.
+  6. From Landmark-opened hub, switch to Invited → see invited waypoints.
+  7. From Landmark-opened hub, switch to Landmarks → see all landmarks.
+  8. Click a landmark in list as non-admin → small teleport Use GUI.
+  9. Right-click Landmark Block as admin → full hub at Landmarks, click landmark → Manage GUI.
+  10. Admin: click Delete Landmark → confirm screen → landmark removed, block removed, message sent.
+  11. Confirm no glass panes in any GUI.
+  12. Confirm Landmark creation still does not count toward max waypoints.
+
+BUILD RESULT
+  SUCCESS — Pinpoint-1.3.28.jar
+
+================================================================================
+ENTRY — 2026-06-10 (Landmark Block Item — dedicated admin placement block — v1.3.27)
+================================================================================
+
+Version: 1.3.27
+Jar: /home/pi/Plugins/Pinpoint/build/libs/Pinpoint-1.3.27.jar
+
+Files Changed:
+  MOD  src/main/java/com/pinpoint/item/ItemManager.java
+  MOD  src/main/java/com/pinpoint/listeners/BlockPlaceListener.java
+  MOD  src/main/java/com/pinpoint/commands/WaypointCommand.java
+  MOD  src/main/resources/config.yml
+  MOD  src/main/resources/plugin.yml
+  MOD  build.gradle.kts
+  MOD  changelog.txt
+  MOD  chatgpt.txt
+
+--- FEATURE: Dedicated Landmark Block Item ---
+
+ITEM PDC TAG / KEY
+  Normal Pinpoint Block: NamespacedKey(plugin, "waypoint_block")  → pinpoint:waypoint_block
+  Landmark Block:        NamespacedKey(plugin, "landmark_block")  → pinpoint:landmark_block
+  These are completely independent. isWaypointBlockItem() checks only waypoint_block.
+  isLandmarkBlock() checks only landmark_block. No cross-match is possible.
+
+ITEM CONSTRUCTION (createLandmarkBlock)
+  Material: read from landmarks.block.material (default LODESTONE).
+  Display name: read from landmarks.block.name, parsed with MiniMessage.miniMessage().deserialize().
+    Italic=false applied. Default: "<gradient:#00e5ff:#8a2be2><bold>Landmark Block</bold></gradient>"
+  Lore: read from landmarks.block.lore (StringList), parsed with
+    LegacyComponentSerializer.legacyAmpersand().deserialize() per line. Italic=false applied.
+    Default: ["&7Admin-only travel landmark.", "&7Place this during landmark setup."]
+  PDC: KEY_LANDMARK_BLOCK set to BYTE 1.
+
+COMMAND FLOW (/wp landmark create <name>)
+  1. Admin runs /wp landmark create SpawnHub.
+  2. Plugin validates: permission, landmarks enabled, name length ≤ 32, no duplicate name.
+  3. setPendingLandmarkCreation(uuid, name) registers setup mode.
+  4. Checks admin inventory for an existing Landmark Block (isLandmarkBlock scan).
+     If none found: addItem(createLandmarkBlock()), sends "A Landmark Block has been added."
+  5. Sends "Place the Landmark Block to set the location for landmark 'SpawnHub'."
+
+PLACEMENT BEHAVIOR (BlockPlaceListener — landmark path)
+  Triggered when isLandmarkBlock(item) is true.
+  Check 1 — permission: requires pinpoint.admin.landmark.create.
+    Fail: event.setCancelled(true) + landmarks.block.no-permission-message.
+  Check 2 — setup mode: hasPendingLandmarkCreation(uuid) must be true.
+    Fail: event.setCancelled(true) + landmarks.block.setup-required-message.
+  Check 3 — landmarks enabled: landmarks.enabled must be true.
+    Fail: event.setCancelled(true) + "Landmarks are disabled in config."
+  Success: clearPendingLandmarkCreation → createLandmark(name, blockLocation) →
+           spawnHologram(landmark) → "Landmark 'X' created!" message.
+           Block placement is NOT cancelled — the Landmark Block physically occupies the world.
+
+PLACEMENT BEHAVIOR (BlockPlaceListener — normal Pinpoint path)
+  Unchanged. Triggered when isWaypointBlockItem(item) is true. The two paths are
+  completely separate if/else branches. No interaction between them.
+
+MAX WAYPOINT LIMIT BEHAVIOR
+  Landmark creation goes through the landmark branch of BlockPlaceListener, which
+  never calls isAtWaypointLimit(). Landmarks use LANDMARK_OWNER_UUID (UUID 0,0)
+  as their owner — getOwnedWaypoints(playerUuid) never returns landmarks for any
+  real player UUID. Landmarks cannot count toward any player's limit by design.
+
+DELETE BEHAVIOR (/wp landmark delete <name>)
+  Unchanged overall logic. Block removal now reads landmarks.block.material from
+  config to determine which block type to clear (previously hardcoded to LODESTONE).
+  Fallback to LODESTONE if config value is invalid.
+
+CONFIG ADDITIONS (inside landmarks: block)
+  landmarks:
+    block:
+      material: "LODESTONE"
+      name: "<gradient:#00e5ff:#8a2be2><bold>Landmark Block</bold></gradient>"
+      lore:
+        - "&7Admin-only travel landmark."
+        - "&7Place this during landmark setup."
+      no-permission-message: "&cYou do not have permission to place Landmark Blocks."
+      setup-required-message: "&cUse /wp landmark create <name> before placing a Landmark Block."
+
+COMPATIBILITY NOTES
+  - Existing Landmarks in waypoints.yml: no change. They remain type: LANDMARK,
+    load with LANDMARK_OWNER_UUID, appear in Landmarks GUI tab, have gradient holograms.
+  - Existing regular Pinpoint Blocks already placed in the world: they are LODESTONE
+    blocks, not items. No change to placed blocks or their waypoint data.
+  - Existing Pinpoint Block items in player inventories: they carry the waypoint_block
+    PDC tag. isWaypointBlockItem() still matches them. No migration needed.
+  - Compass distribution (v1.3.26): unchanged.
+  - Category GUI, party system, hologram system: all unchanged.
+  - No decorative glass panes re-introduced.
+
+Build Result:
+  BUILD SUCCESSFUL — no errors, 1 pre-existing deprecation note (Gradle API)
+  Output: build/libs/Pinpoint-1.3.27.jar (110K)
+
+Testing Checklist for Manual In-Game Verification:
+  1. Run /wp landmark create SpawnHub.
+     Confirm you receive a Landmark Block with gradient name, not a normal Pinpoint.
+  2. Place the Landmark Block.
+     Confirm "Landmark 'SpawnHub' created!" message appears.
+  3. Confirm hologram appears above the block with gradient landmark style.
+  4. Open /wp GUI — confirm SpawnHub appears in Landmarks tab (slot 50, BEACON).
+  5. Confirm SpawnHub does NOT appear in My Pinpoints, Public, or Invited tabs.
+  6. Create normal Pinpoints up to your max-waypoints-per-player limit.
+     Run /wp landmark create AnotherLandmark — confirm landmark creation succeeds
+     (not blocked by waypoint limit).
+  7. Place a normal Pinpoint Block — confirm it still creates a regular Pinpoint.
+  8. While NOT in setup mode, try placing a Landmark Block.
+     Confirm it is cancelled and the setup-required-message appears.
+  9. Give a non-admin player a Landmark Block and have them try to place it.
+     Confirm it is cancelled and the no-permission-message appears.
+  10. Delete the landmark: /wp landmark delete SpawnHub.
+      Confirm hologram removed, block set to AIR, storage entry gone.
+  11. Restart server — confirm all remaining landmarks persist correctly.
+
+================================================================================
+ENTRY — 2026-06-10 (Automatic Compass Distribution — permanent tracking — v1.3.26)
+================================================================================
+
+Version: 1.3.26
+Jar: /home/pi/Plugins/Pinpoint/build/libs/Pinpoint-1.3.26.jar
+
+Files Changed:
+  NEW  src/main/java/com/pinpoint/data/CompassDataManager.java
+  MOD  src/main/java/com/pinpoint/listeners/NewcomerListener.java
+  MOD  src/main/java/com/pinpoint/PinpointPlugin.java
+  MOD  src/main/resources/config.yml
+  MOD  src/main/resources/plugin.yml
+  MOD  build.gradle.kts
+  MOD  changelog.txt
+  MOD  chatgpt.txt
+
+--- FEATURE: Automatic Pinpoint Compass Distribution ---
+
+Replaced the simple hasPlayedBefore() first-join check with a permanent,
+UUID-based "received compass" tracking system that mirrors the GuideBook
+plugin's PlayerDataManager pattern.
+
+STORAGE FORMAT
+  File: plugins/Pinpoint/compass-received.yml
+  Structure:
+    players:
+      <uuid>: true
+      <uuid>: true
+  A UUID is present in the file only when the player has received a compass.
+  Absence from the file means "not yet received" — no false values written.
+  Written on every markReceived() call (immediate, not batched).
+  Safe for thousands of players (only truthy entries stored).
+
+JOIN BEHAVIOR
+  On every PlayerJoinEvent (MONITOR priority):
+  1. Check compass.enabled — if false, do nothing.
+  2. Check CompassDataManager.hasReceived(uuid) — if true, do nothing.
+  3. Schedule a 1-tick delayed task (inventory fully initialized):
+     a. Check if player already has a valid Pinpoint Compass in inventory.
+        If yes → markReceived() and return (no duplicate given).
+     b. Give compass via addItem(). If inventory has space → normal give,
+        show compass.message. If full → dropItemNaturally(), show
+        compass.inventory-full message.
+     c. markReceived() — write UUID to compass-received.yml.
+
+  This covers all cases:
+  - Brand-new players joining for the first time.
+  - Existing players who joined before this update (not in compass-received.yml).
+  - Players who already own a compass from an older version or staff gift
+    (duplicate protection catches them without giving another).
+
+DUPLICATE PROTECTION
+  Before giving, iterates player.getInventory().getContents() (all 41 slots:
+  storage + armor + off-hand) and calls ItemManager.isWaypointCompass() on
+  each item. If any slot contains a valid Pinpoint Compass (PDC-tagged), the
+  player is marked received without receiving another compass.
+
+CONFIG CHANGES
+  Renamed: newcomer-compass → compass
+  Removed key: give-on-first-join (always applies now)
+  Added key: inventory-full
+
+  New config block:
+    compass:
+      enabled: true
+      message: "&bYou received a Pinpoint Compass!"
+      inventory-full: "&eYour inventory was full. Your Pinpoint Compass was dropped nearby."
+
+PLUGIN WIRING (PinpointPlugin.java)
+  compassDataManager initialized and loaded in onEnable() before itemManager.
+  compassDataManager.load() called in reload() to pick up any manual edits.
+  getCompassDataManager() getter added.
+
+Build Result:
+  BUILD SUCCESSFUL — no errors, 1 pre-existing deprecation note (Gradle API)
+  Output: build/libs/Pinpoint-1.3.26.jar (108K)
+
+Testing Checklist for Manual In-Game Verification:
+  1. Install jar. Confirm compass-received.yml is created in plugins/Pinpoint/
+     on first startup (even if empty).
+  2. Join as a brand-new player (never joined before).
+     Confirm compass appears in inventory and message "&bYou received a Pinpoint Compass!" shows.
+  3. Relog as that player. Confirm NO compass is given and NO message appears.
+  4. Confirm compass-received.yml now contains the player's UUID set to true.
+  5. Join as an existing player who was already on the server before the update.
+     Confirm they receive a compass on their next login.
+  6. Give a player a Pinpoint Compass manually (/wp give <player> compass).
+     Then reset their UUID from compass-received.yml (or use a fresh UUID).
+     Rejoin — confirm they receive the "marked received" path (no duplicate)
+     and NOT a second compass.
+  7. Fill a player's inventory completely. Join — confirm compass drops at feet
+     and "&eYour inventory was full..." message appears.
+  8. Disable compass in config (compass.enabled: false). Restart/reload.
+     Confirm no compass is given to any player.
+  9. Run /wp reload — confirm "Compass distribution data loaded for X player(s)."
+     appears in console.
+  10. Confirm all existing waypoint, landmark, party, and teleport features
+      work without regression.
+
+================================================================================
+ENTRY — 2026-06-10 (Newcomer Compass + Landmark waypoint type — v1.3.25)
+================================================================================
+
+Version: 1.3.25
+Jar: /home/pi/Plugins/Pinpoint/build/libs/Pinpoint-1.3.25.jar
+
+Files Changed:
+  NEW  src/main/java/com/pinpoint/data/WaypointType.java
+  NEW  src/main/java/com/pinpoint/listeners/NewcomerListener.java
+  MOD  src/main/java/com/pinpoint/data/Waypoint.java
+  MOD  src/main/java/com/pinpoint/data/WaypointStorage.java
+  MOD  src/main/java/com/pinpoint/data/WaypointManager.java
+  MOD  src/main/java/com/pinpoint/commands/WaypointCommand.java
+  MOD  src/main/java/com/pinpoint/gui/GuiManager.java
+  MOD  src/main/java/com/pinpoint/hologram/HologramManager.java
+  MOD  src/main/java/com/pinpoint/util/TeleportHelper.java
+  MOD  src/main/java/com/pinpoint/PinpointPlugin.java
+  MOD  src/main/java/com/pinpoint/listeners/BlockPlaceListener.java
+  MOD  src/main/resources/config.yml
+  MOD  src/main/resources/plugin.yml
+  MOD  build.gradle.kts
+
+--- FEATURE 1: Newcomer Compass ---
+
+New players (hasPlayedBefore() == false) automatically receive a Pinpoint
+Compass 1 tick after their first join. If inventory is full the item drops
+naturally at their location. The feature is fully configurable:
+
+  newcomer-compass:
+    enabled: true
+    give-on-first-join: true
+    message: "&aYou received a Pinpoint Compass to help you travel!"
+
+Implementation:
+  NewcomerListener.java — listens to PlayerJoinEvent, runs 1 tick later on the
+  main thread, calls ItemManager.createWaypointCompass() and adds to inventory.
+
+--- FEATURE 2: Landmarks ---
+
+A new admin-only waypoint type stored alongside regular waypoints in
+waypoints.yml with type: LANDMARK. Landmarks are globally accessible (canAccess
+always returns true), have no player owner (LANDMARK_OWNER_UUID = UUID(0,0)),
+do not appear in player-owned counts, and never trigger the naming flow.
+
+Hologram: a single line parsed with MiniMessage (default gradient style).
+GUI: new "Landmarks" tab at slot 50 of the hub bottom nav bar (BEACON icon).
+Teleport: uses landmarks.teleport.delay-seconds (default 10) and
+           landmarks.teleport.cost (default 0); no owner payment.
+
+Admin Commands (require pinpoint.admin.landmark or sub-permission):
+  /wp landmark create <name>   — admin enters placement mode; places block to
+                                  set location; auto-receives block if needed
+  /wp landmark delete <name>   — removes hologram + storage + block
+  /wp landmark list            — shows all landmarks with world/coords
+  /wp landmark reload          — reloads config + refreshes landmark holograms
+  Alias: /pinpoint now works as an alias for /waypoint
+
+Permissions added:
+  pinpoint.admin.landmark          (parent, default: op)
+  pinpoint.admin.landmark.create   (default: op)
+  pinpoint.admin.landmark.delete   (default: op)
+  pinpoint.admin.landmark.list     (default: op)
+  pinpoint.admin.landmark.reload   (default: op)
+
+Config Additions:
+  newcomer-compass:
+    enabled: true
+    give-on-first-join: true
+    message: "&aYou received a Pinpoint Compass to help you travel!"
+
+  landmarks:
+    enabled: true
+    hologram:
+      line-1: "<gradient:#00e5ff:#8a2be2><bold>%name%</bold></gradient>"
+      color: "AQUA"
+    gui:
+      title: "&bLandmarks"
+      icon: "BEACON"
+      category-name: "&bLandmarks"
+    teleport:
+      enabled: true
+      cost: 0
+      delay-seconds: 10
+
+Build Result:
+  BUILD SUCCESSFUL — no errors, 1 deprecation note (pre-existing Gradle warning)
+  Output: build/libs/Pinpoint-1.3.25.jar (105K)
+
+Storage Migration:
+  Existing waypoints.yml is fully backward-compatible. Old entries load with
+  type defaulting to PINPOINT. The type field is written on next save only.
+  No manual migration needed.
+
+Testing Checklist for Manual In-Game Verification:
+  1. Join as a brand-new player and confirm compass is received once
+     (check chat message and inventory).
+  2. Rejoin as the same player and confirm compass is NOT given again.
+  3. Run: /wp landmark create SpawnHub
+     Confirm placement prompt and block given if not in inventory.
+  4. Place the Pinpoint Block — confirm "Landmark 'SpawnHub' created!" message.
+  5. Confirm hologram appears above the block with the gradient name style.
+  6. Open /wp GUI and confirm Landmarks tab exists (slot 50, beacon icon).
+  7. Click Landmarks tab — SpawnHub should appear.
+  8. Click SpawnHub — confirm Landmark Use GUI opens (no Manage options).
+  9. Click "Teleport Here" — confirm 10-second countdown, movement cancel works.
+  10. Confirm landmarks do NOT appear in My Pinpoints / Public / Invited tabs.
+  11. Confirm landmarks do not count against max-waypoints-per-player limit
+      (create player waypoints up to the limit, then verify landmarks still work).
+  12. Run: /wp landmark delete SpawnHub
+      Confirm hologram removed, block set to air, storage entry gone.
+  13. Run: /wp landmark list — confirm empty list after deletion.
+  14. Create a new landmark, restart/reload the plugin, confirm landmark persists
+      with hologram re-spawning.
+  15. Run: /wp landmark reload — confirm "config reloaded" message.
+  16. Test /pinpoint as alias for /waypoint.
+
+================================================================================
+ENTRY — 2026-06-10 (Bits to Bops wording audit)
+================================================================================
+
+Version: no code version change
+
+Changed:
+  Updated handoff documentation references from Bits to Bops for future player
+  teleport cost notes and out-of-scope integration notes.
+
+Build:
+  Not rebuilt in this session; documentation-only change.
+
+Manual testing still needed:
+  None for this documentation-only change. Future Bops integration work should
+  verify any economy calls against com.bops.api.BopsAPI.
+
+================================================================================
+ENTRY — 2026-06-10 (remove all decorative glass panes — v1.3.24)
+================================================================================
+
+Version: 1.3.24
+
+User Request:
+Remove ALL decorative glass panes from every Pinpoint GUI screen.
+Reason: glass panes look cluttered and render poorly on Bedrock.
+Rule: leave those slots empty — do not replace with any other filler.
+Keep all functional items (buttons, waypoint items, player heads, page nav).
+
+Scope covered:
+  GuiManager.java     — all screens
+  PartyGuiManager.java — all party screens
+
+What changed:
+
+  GuiManager.renderCategoryGui():
+    Removed the top-border loop (slots 0-8 glass).
+    Removed the side-border + content-slot pre-fill loops (rows 1-4 glass).
+    Empty hub slots are now genuinely empty.
+
+  GuiManager.renderEmptyState():
+    Changed empty-state indicator material GRAY_STAINED_GLASS_PANE → PAPER.
+    This item is functional (conveys info), so a neutral material was chosen.
+
+  GuiManager.renderBottomNav():
+    Removed full bottom-row glass pre-fill (slots 45-53).
+    Changed prev-page button: RED_STAINED_GLASS_PANE → ARROW.
+    Changed next-page button: GREEN_STAINED_GLASS_PANE → ARROW.
+    Slot 50 (was separator glass) is now empty.
+
+  GuiManager.fillBorder():
+    Made no-op (empty body). All callers — openManageGui, openConfirmDeleteGui,
+    openUseGui, openInviteGui, openIconSelectGui, openDirectionPickerGui —
+    now produce borderless GUIs.
+
+  PartyGuiManager.fillBorder():
+    Made no-op (empty body). All callers — openLinkRequestGui, openPartyGui,
+    openConfirmRemoveGui, openTravelOfferGui — now produce borderless GUIs.
+
+What was NOT changed:
+  Navigation logic, slot assignments, functional buttons, waypoint items,
+  player heads, category tabs, Back/Close buttons, Confirm/Cancel buttons.
+  No materials changed on functional items except the two pagination arrows
+  and the empty-state indicator.
+
+FUTURE — no glass should be re-introduced. If a visual separator is ever
+  needed in the Bedrock-first design, use invisible/air slots or a dedicated
+  item with intent (e.g. a named PAPER or named separator material).
+
+================================================================================
+
+================================================================================
+ENTRY — 2026-06-10 (remove player-to-player invite flow — v1.3.23)
+================================================================================
+
+Version: 1.3.23
+
+User Request:
+Remove the old shift-right-click player invite / party-style access feature.
+Keep: normal waypoint invite from Manage GUI, Invited category, private access
+      model, waypoint invite data, party system.
+Remove: shift-right-click player interaction, openInviteSelectGui, sendInvite,
+        openAcceptDenyGui, processAccept/processDeny, TeleportInvite system.
+Reason: Pinpoint is moving toward a Player Teleport tab for direct travel.
+        The old system is dead weight before that implementation begins.
+
+Work Performed:
+  WaypointManager.java     — removed TeleportInvite inner class; removed
+                             pendingInvites field; removed createInvite,
+                             getInvite, hasPendingInvite, removeInvite
+  GuiManager.java          — removed openInviteSelectGui, sendInvite,
+                             openAcceptDenyGui
+  WaypointCommand.java     — removed processAccept, processDeny; removed
+                             accept/deny from switch, tab-completion, usage;
+                             removed unused Optional import
+  WaypointInteractListener.java — removed entire onPlayerInteractEntity method;
+                             simplified shift+sneaking block (removed
+                             hasPendingInvite branch); removed unused imports
+                             (PlayerInteractEntityEvent, List)
+  PartyGuiManager.java     — updated "no party" message: removed
+                             "Shift+right-click a player..." hint
+  config.yml               — removed invite-sent, invite-received,
+                             invite-accepted, invite-denied, invite-expired,
+                             no-pending-invite message keys
+  plugin.yml               — removed accept/deny lines from command usage
+  build.gradle.kts         — 1.3.22 → 1.3.23
+  plugin.yml               — 1.3.22 → 1.3.23
+  changelog.txt
+  chatgpt.txt
+
+WHAT WAS REMOVED vs KEPT
+
+  REMOVED (player-to-player teleport invite system):
+    WaypointManager.TeleportInvite         — data class for pending invites
+    WaypointManager.pendingInvites         — Map<UUID, TeleportInvite>
+    WaypointManager.createInvite()         — created TeleportInvite entries
+    WaypointManager.getInvite()            — retrieved pending invite
+    WaypointManager.hasPendingInvite()     — checked invite presence
+    WaypointManager.removeInvite()         — cleared invite
+    GuiManager.openInviteSelectGui()       — "Pinpoint Access: [player]" GUI
+    GuiManager.sendInvite()                — created invite + chat notification
+    GuiManager.openAcceptDenyGui()         — accept/deny GUI (was dead code)
+    WaypointCommand.processAccept()        — /wp accept handler
+    WaypointCommand.processDeny()          — /wp deny handler
+    WaypointInteractListener.onPlayerInteractEntity — entire player click handler
+    config messages: invite-sent, invite-received, invite-accepted,
+                     invite-denied, invite-expired, no-pending-invite
+
+  KEPT (private waypoint access model — completely untouched):
+    Waypoint.invitedPlayers set           — per-waypoint invite list
+    Waypoint.addInvite / removeInvite / isInvited
+    WaypointStorage: invited list saved/loaded in waypoints.yml
+    WaypointManager.getInvitedWaypoints() — used by Invited category tab
+    GuiManager.openInviteGui()            — Manage GUI → Invite Players button
+    GuiManager.Category.INVITED           — Invited Pinpoints category tab
+    All waypoint data in waypoints.yml unchanged
+
+  KEPT (party system — completely untouched):
+    PartyGuiManager, PartyCommand, PartyListener
+    TeleportHelper.teleportGroupMember() / partyFollow()
+    Party travel notification system
+    /party commands
+    Shift+right-click compass → follow party travel offer (still works)
+
+FUTURE — Player Teleport tab (v1.3.22 placeholder, not yet implemented)
+  Implementation entry point: GuiManager.renderPlayersContent() click handlers
+  Design already documented in v1.3.22 chatgpt.txt entry.
+
+================================================================================
+
+================================================================================
+ENTRY — 2026-06-10 (category-based GUI navigation — v1.3.22)
+================================================================================
+
+Version: 1.3.22
+
+User Request:
+Replace the flat Hub (owned + invited + public mixed in one list) with a
+four-category tab system. Categories: My Pinpoints, Invited, Public, Players
+(placeholder). No landing screen — open directly to My Pinpoints (or last
+viewed category). Bottom-row tab buttons. Last-viewed category persisted per
+session. Block right-click skips hub directly to Manage/Use GUI.
+Player Teleport category: placeholder only — show online players, no teleport.
+Do not implement player teleports, Bops, requests, or new commands.
+
+Work Performed:
+  GuiManager.java   — full rewrite of hub navigation; category tabs; per-tab
+                      lore; empty-state messages; block-click bypass; Use GUI
+                      border fix; Back buttons updated in Manage + Use GUI
+  WaypointManager.java — added getInvitedWaypoints(UUID), getPublicWaypoints(UUID)
+  build.gradle.kts  — 1.3.21 → 1.3.22
+  plugin.yml        — 1.3.21 → 1.3.22
+  changelog.txt
+  chatgpt.txt
+
+Files Modified:
+  src/main/java/com/pinpoint/gui/GuiManager.java
+  src/main/java/com/pinpoint/data/WaypointManager.java
+  build.gradle.kts
+  src/main/resources/plugin.yml
+  changelog.txt
+  chatgpt.txt
+
+Design:
+
+CATEGORY ENUM (GuiManager.Category)
+  public enum Category { OWNED, INVITED, PUBLIC, PLAYERS }
+  Stored as inner enum inside GuiManager; accessible externally as needed.
+
+LAST-VIEWED PERSISTENCE
+  Map<UUID, Category> playerCategory — stores last-viewed category per player.
+  Set in renderCategoryGui() on every render. Read in openHubGui() to reopen
+  to the correct tab. Reset to OWNED on first open (default).
+  Map<UUID, EnumMap<Category, Integer>> categoryPages — stores last page per
+  player per category. Tabs reset to page 0 on click; Back from sub-menus
+  restores the stored page.
+
+ENTRY POINT — openHubGui(player, focusedWaypointId, fromBlock)
+  fromBlock=true + focusedWaypointId set:
+    → getWaypoint(id) → isOwner? openManageGui : openUseGui
+    No hub shown at all. One click from block to action.
+  fromBlock=false (compass / /wp):
+    → read playerCategory (default OWNED) → renderCategoryGui(player, cat, page)
+
+HUB LAYOUT (54 slots, 6 rows)
+  Row 0 (0-8):   gray glass top border
+  Rows 1-4:      left/right glass borders + 28 content slots (cols 1-7)
+  Row 5 (45-53): bottom navigation bar
+
+BOTTOM NAVIGATION BAR (row 5)
+  Slot 45: Previous Page  (RED_STAINED_GLASS_PANE, conditional on page > 0)
+  Slot 46: My Pinpoints   (LODESTONE — active=green/▶, inactive=gray/click)
+  Slot 47: Invited        (WRITTEN_BOOK)
+  Slot 48: Public         (COMPASS)
+  Slot 49: Players        (PLAYER_HEAD)
+  Slot 50: separator      (gray glass)
+  Slot 51: Page X / Y     (PAPER, only shown when totalPages > 1)
+  Slot 52: Close          (BARRIER)
+  Slot 53: Next Page      (GREEN_STAINED_GLASS_PANE, conditional)
+
+  Active tab: GREEN name, "▶ Currently viewing" lore, no click handler.
+  Inactive tab: GRAY name, "Click to switch" lore, click → renderCategoryGui(tab, 0).
+
+CATEGORY CONTENT
+  My Pinpoints  → WaypointManager.getOwnedWaypoints(uuid)
+                  Lore: visibility (Public/Private), fee, "Click to manage"
+                  Name: GREEN. "Owner: You" and "Category: Mine" removed.
+  Invited       → WaypointManager.getInvitedWaypoints(uuid)
+                  Filter: !isOwner && !isPublic && isInvited
+                  Lore: owner name, "Private — invited", fee, "Click to teleport"
+                  Name: WHITE.
+  Public        → WaypointManager.getPublicWaypoints(uuid)
+                  Filter: isPublic && !isOwner
+                  Lore: owner name, fee, "Click to teleport". No "Public" label.
+                  Name: WHITE.
+  Players       → Bukkit.getOnlinePlayers() filtered to exclude self, sorted alpha.
+                  Each: makeSkull(player), lore: "Player teleport — coming soon"
+                  No click handler. Placeholder.
+
+EMPTY STATE
+  When a category has 0 items, slot 22 shows a gray glass pane with a title
+  and a one-line explanation:
+    OWNED:   "No Pinpoints yet" / "Place a Pinpoint Block to create one"
+    INVITED: "No invitations" / "Ask a player to invite you..."
+    PUBLIC:  "No public Pinpoints" / "No public Pinpoints have been created yet"
+    PLAYERS: "No other players online" / "Check back when..."
+
+BACK BUTTON CHANGES
+  Manage GUI slot 22: was openHubGui(player, wp.getId(), fromBlock).
+    Now: reads playerCategory map → renderCategoryGui(cat, storedPage).
+  Use GUI slot 15:    same change.
+  If a player arrived via block right-click (no category map entry), Back
+  defaults to OWNED category, page 0.
+
+USE GUI FIX
+  fillBorder(inv, 3) added to openUseGui(). Previously the only GUI without
+  a border. Now consistent with all other screens.
+  "Private" lore updated to "Private — invited" to match the Invited tab label.
+
+REMOVED
+  hubPageMap field (replaced by categoryPages EnumMap).
+  renderHubGui() method (replaced by renderCategoryGui()).
+  Slot 49 "This Pinpoint" context button in the old hub.
+  "Owner: You" and "Category: Mine" lore lines on owned waypoints.
+
+WIRING
+  WaypointInteractListener.openHubGui(player, wp.getId(), true) unchanged —
+  the new openHubGui routing handles the bypass transparently.
+  No changes to commands, listeners, or other managers required.
+
+FUTURE — Player Teleport (not yet implemented)
+  Cost:      100 Bops per player. Both players must have >= 100 Bops.
+  Flow:      10-second countdown. Cancel if either player moves.
+  Payment:   charge ONLY after successful teleport completion (no pre-charge).
+  No refund system needed (charges happen post-success by design).
+  Implementation entry point: renderPlayersContent() click handler in GuiManager.
+
+================================================================================
+
+================================================================================
+ENTRY — 2026-06-10 (GUI audit + category reorganization proposal — pre-build)
+================================================================================
+
+Version: 1.3.21 (no code changes — analysis and design only)
+
+User Request:
+Inspect the current Pinpoint GUI system and provide:
+  1. A report of the current GUI structure.
+  2. A proposed navigation flow for Owned / Public / Invited categories.
+  3. A slot-by-slot GUI mockup.
+  4. Bedrock compatibility concerns.
+  5. Suggestions for reducing clutter and clicks.
+Do not write code. Do not build. Do not deploy. Do not test.
+(Player-to-player teleports and Bops integration are explicitly out of scope.)
+
+Work Performed:
+Read-only audit of GuiManager.java, Waypoint.java, WaypointStorage.java,
+TeleportHelper.java, config.yml, plugin.yml. No files changed.
+
+================================================================================
+SECTION 1 — CURRENT GUI STRUCTURE
+================================================================================
+
+--- SCREEN INVENTORY ---
+
+Nine screens exist in GuiManager.java.
+
+1. HUB GUI  (openHubGui / renderHubGui)
+   Size:   54 slots (6 rows) — fixed
+   Title:  "Pinpoint Hub" (aqua)
+   Entry:  /wp, /waypoint, compass right-click, Pinpoint block right-click
+
+   Layout:
+     Row 0 (slots 0–8):   gray glass border
+     Rows 1–4, cols 1–7:  28 content slots per page (waypoints)
+     Rows 1–4, cols 0, 8: gray glass side borders
+     Row 5 (slots 45–53): navigation bar
+
+   Navigation bar slot assignments:
+     Slot 45: Previous Page (RED_STAINED_GLASS_PANE) — conditional on page > 0
+     Slot 47: Page indicator  (PAPER, "Page X / Y") — always shown
+     Slot 49: This Pinpoint  (COMPASS, "This Pinpoint: [name]") — ONLY when
+               opened by right-clicking a specific Pinpoint block; absent otherwise
+     Slot 51: Close           (BARRIER)
+     Slot 53: Next Page       (GREEN_STAINED_GLASS_PANE) — conditional
+
+   Content item lore (per waypoint):
+     Owned:     "Owner: You" (green) / "Category: Mine" (aqua, hardcoded bug*) /
+                fee line / "Click to open" (yellow) — name rendered green
+     Non-owned: "Owner: [name]" (gray) / "Public" or "Private" / fee / "Click to open"
+                — name rendered white
+
+   Sort order: owned first → invited/private second → public third.
+               Alphabetical within each group.
+
+   Click behaviour:
+     Clicking an owned waypoint → opens Manage GUI
+     Clicking a non-owned waypoint → opens Use GUI
+
+   * "Category: Mine" at line 175 is hardcoded for ALL owned waypoints regardless
+     of the icon chosen. It does not reflect any real category data.
+
+2. MANAGE GUI  (openManageGui)
+   Size:   27 slots (3 rows)
+   Title:  "Manage: [name]" (aqua)
+   Entry:  Clicking an owned waypoint in the Hub; Back from nested screens
+
+   Border: gray glass pane (fillBorder)
+   Always present:
+     Slot 10: Teleport Here        (ENDER_PEARL)
+     Slot 22: Back                 (ARROW) → Hub GUI
+
+   Owner-only (if isOwner):
+     Slot 11: Visibility toggle    (EMERALD_BLOCK if public, REDSTONE_BLOCK if private)
+     Slot 12: Set Fee              (GOLD_NUGGET) — closes GUI, prompts in chat
+     Slot 13: Invite Players       (PLAYER_HEAD) — only shown when waypoint is PRIVATE
+     Slot 14: Get Pinpoint Compass (COMPASS) — closes GUI, gives compass item
+     Slot 15: Rename Pinpoint      (NAME_TAG) — closes GUI, prompts in chat
+     Slot 16: Delete Pinpoint      (TNT) → Confirm Delete GUI
+     Slot 20: Change Icon          (current icon material) — overrides bottom border
+     Slot 21: Facing Direction     (RECOVERY_COMPASS) — overrides bottom border
+
+3. USE GUI  (openUseGui)
+   Size:   27 slots (3 rows)
+   Title:  "Use: [name]" (aqua)
+   Entry:  Clicking a non-owned waypoint in the Hub
+
+   No border (unlike all other GUIs — this is an inconsistency).
+   Slot 13: Waypoint display item  (icon material, name, owner, visibility)
+   Slot 11: Teleport Here          (ENDER_PEARL)
+   Slot 15: Back                   (ARROW) → Hub GUI
+
+4. CONFIRM DELETE GUI  (openConfirmDeleteGui)
+   Size:   27 slots (3 rows)
+   Title:  "Delete: [name]?" (red)
+   Entry:  Delete Pinpoint button in Manage GUI
+
+   Border: gray glass pane
+   Slot 13: Waypoint preview item  (icon material, owner, "cannot be undone")
+   Slot 11: Cancel                 (LIME_WOOL) → back to Manage GUI
+   Slot 15: Confirm Delete         (RED_WOOL) → deletes, closes, returns block item
+
+5. INVITE GUI  (openInviteGui)
+   Size:   27–54 slots (3–6 rows, dynamic based on online player count)
+   Title:  "Invite Players: [name]" (aqua)
+   Entry:  "Invite Players" button in Manage GUI (only visible when waypoint is private)
+
+   Border: gray glass pane
+   Content: player skull per online player (excluding owner)
+     Invited players: "Already invited" (green) / "Click to remove access" (red)
+     Others:          "Click to grant access" (yellow)
+   Empty state: BARRIER "No other players online" at slot 13
+   Back: center of last row → Manage GUI
+
+   Limitation: only online players are ever shown. Offline invited players
+   are not visible or revocable from this screen.
+
+6. ACCEPT/DENY GUI  (openAcceptDenyGui)
+   Size:   27 slots (3 rows)
+   Title:  "Teleport Invite" (aqua)
+   Entry:  Incoming player-to-player travel invite (system-opened)
+
+   Slot 13: Paper — inviter name + waypoint label
+   Slot 11: Accept (LIME_WOOL)
+   Slot 15: Deny   (RED_WOOL)
+
+7. INVITE SELECT GUI  (openInviteSelectGui)
+   Size:   27–54 slots (3–6 rows, dynamic)
+   Title:  "Pinpoint Access: [target player name]" (aqua)
+   Entry:  Player-to-player access management (shift+right-click flow)
+
+   Shows the inviting player's owned waypoints.
+   Per waypoint: public/private status, access state for target, click to
+   grant/remove. Cancel button at bottom-right.
+
+8. ICON SELECT GUI  (openIconSelectGui)
+   Size:   dynamic (palette size / 7, plus 2 border rows, max 6 rows)
+   Title:  "Choose Icon" (aqua)
+   Entry:  Change Icon button in Manage GUI
+
+   Content: 7 icons per row. "Currently selected" (green) vs "Click to select" (yellow).
+   Palette: 10 base icons + permission-gated extras from config.yml.
+   Back: center of bottom border row → Manage GUI.
+
+9. DIRECTION PICKER GUI  (openDirectionPickerGui)
+   Size:   27 slots (3 rows)
+   Title:  "Facing Direction" (aqua)
+   Entry:  Facing Direction button in Manage GUI
+
+   Border: gray glass pane
+   Slot 10: BLUE_CONCRETE   — North
+   Slot 12: RED_CONCRETE    — South
+   Slot 14: GREEN_CONCRETE  — East
+   Slot 16: YELLOW_CONCRETE — West
+   Slot 21: BARRIER         — Clear Direction
+   Slot 23: ARROW           — Back → Manage GUI
+
+--- KNOWN DEFECTS IN CURRENT GUI ---
+
+  a) "Category: Mine" (GuiManager.java:175) is hardcoded for all owned waypoints.
+     It always says "Mine" regardless of the icon or intended category. This is
+     dead code from an unfinished category feature — it should be removed or
+     replaced with the actual icon category name.
+
+  b) Use GUI has no border. All other GUIs use fillBorder(); Use GUI does not.
+     This makes it visually inconsistent.
+
+  c) Invite GUI only shows ONLINE players. There is no way to revoke a previous
+     invite for a player who is now offline.
+
+  d) "Get Pinpoint Compass" in the Manage GUI (slot 14) gives the player a
+     general Pinpoint Compass item. It is unrelated to managing this specific
+     waypoint and is oddly placed alongside per-waypoint settings.
+
+  e) The Hub's "Back" button from nested screens (Manage, Use) always passes
+     wp.getId() as the focusedWaypointId, which adds slot 49 "This Pinpoint"
+     even when the hub was originally opened from the compass (not a block).
+     This is technically harmless but slightly misleading.
+
+================================================================================
+SECTION 2 — PROPOSED NAVIGATION FLOW
+================================================================================
+
+CURRENT FLOW:
+  Hub (flat list: owned + public + invited mixed, sorted) → click → Manage or Use
+
+PROPOSED FLOW:
+  Hub Landing (category selector) → choose category → Category List → click → Manage or Use
+                                                          ↑ Back
+                                      ← Back ─────────────────────────────────
+
+  Entry points remain unchanged: /wp, compass right-click, block right-click.
+  Block right-click skips the Hub entirely and opens Manage GUI directly
+  (bypassing the landing screen and category list — one fewer click for the
+  most common block interaction).
+
+NAVIGATION GRAPH:
+
+  [Hub Landing]
+       │
+   ┌───┼───────────────────┐
+   │   │                   │
+[My Pinpoints]  [Public]  [Invited]
+   │   │                   │
+   │   └───────── Back ─────┘
+   │
+[click waypoint]
+   │
+   ├── owned → [Manage GUI]
+   │              │
+   │         ┌────┼────────────────┐
+   │         │    │                │
+   │   [Confirm  [Invite  [Icon  [Direction
+   │    Delete]   GUI]    Picker] Picker]
+   │         │
+   │         └── Back → [Category List: My Pinpoints]
+   │
+   └── non-owned → [Use GUI]
+                      │
+                      └── Back → [Category List: Public or Invited]
+
+BACK BUTTON BEHAVIOUR:
+  All Back buttons in Manage/Use/sub-GUIs return to the specific category list
+  the player came from, not to the generic flat Hub. This requires a
+  "sourceCategory" enum (OWNED / PUBLIC / INVITED) to be passed through the
+  navigation chain. The current fromBlock boolean can be extended to carry this.
+
+================================================================================
+SECTION 3 — SLOT-BY-SLOT GUI MOCKUPS
+================================================================================
+
+Notation:
+  [G]  = gray stained glass pane (filler/border)
+  [ ]  = empty slot
+  Slot numbers in parentheses.
+
+--- SCREEN A: HUB LANDING (Category Selector) ---
+
+Size: 27 slots (3 rows)
+Title: "Pinpoint" (or "Where to?" — short, clean)
+
+Slot layout (row × col, 0-indexed):
+
+  Row 0 │ [G]  [G]  [G]  [G]  [G]  [G]  [G]  [G]  [G]
+        │  0    1    2    3    4    5    6    7    8
+
+  Row 1 │ [G]  [G]  [MY] [G]  [PUB][G]  [INV][G]  [G]
+        │  9   10   11   12   13   14   15   16   17
+
+  Row 2 │ [G]  [G]  [G]  [G]  [X]  [G]  [G]  [G]  [G]
+        │ 18   19   20   21   22   23   24   25   26
+
+Button details:
+  Slot 11 — MY PINPOINTS
+    Material:  LODESTONE (matches the Pinpoint block itself)
+    Name:      "My Pinpoints" (green if count > 0, gray if none)
+    Lore:      "3 owned Pinpoints" (count shown)
+               "Click to manage your locations"
+
+  Slot 13 — PUBLIC
+    Material:  COMPASS
+    Name:      "Public Pinpoints" (aqua)
+    Lore:      "12 public locations"
+               "Click to explore and teleport"
+
+  Slot 15 — INVITED
+    Material:  PLAYER_HEAD (generic, or the owner's head if single invite)
+    Name:      "Invited" (yellow)
+    Lore:      "2 locations you've been given access to"
+               "Click to view"
+
+  Slot 22 — CLOSE
+    Material:  BARRIER
+    Name:      "Close"
+    Lore:      (none)
+
+--- SCREEN B: MY PINPOINTS (Category List — Owned) ---
+
+Size: 54 slots (6 rows)
+Title: "My Pinpoints" (green)
+
+  Row 0 │ [G]  [G]  [G]  [G]  [G]  [G]  [G]  [G]  [G]
+        │  0    1    2    3    4    5    6    7    8
+
+  Row 1 │ [G]  [wp] [wp] [wp] [wp] [wp] [wp] [wp] [G]
+        │  9   10   11   12   13   14   15   16   17
+
+  Row 2 │ [G]  [wp] [wp] [wp] [wp] [wp] [wp] [wp] [G]
+        │ 18   19   20   21   22   23   24   25   26
+
+  Row 3 │ [G]  [wp] [wp] [wp] [wp] [wp] [wp] [wp] [G]
+        │ 27   28   29   30   31   32   33   34   35
+
+  Row 4 │ [G]  [wp] [wp] [wp] [wp] [wp] [wp] [wp] [G]
+        │ 36   37   38   39   40   41   42   43   44
+
+  Row 5 │[PRV] [G]  [G]  [PG] [BCK][G]  [G]  [G] [NXT]
+        │ 45   46   47   48   49   50   51   52   53
+
+Navigation bar (row 5):
+  Slot 45: Previous Page   (RED_STAINED_GLASS_PANE, conditional)
+  Slot 48: Page indicator  (PAPER, "Page X / Y")
+  Slot 49: Back            (ARROW, "Back to Categories")
+  Slot 53: Next Page       (GREEN_STAINED_GLASS_PANE, conditional)
+
+  Note: Close button removed from category lists — Back covers the exit path
+  in one more click. If a dedicated Close is desired, it can share slot 51.
+
+Content item lore (My Pinpoints — all owned, so uniform):
+  Name: [icon material] [waypoint name] (green)
+  Lore line 1: "Public" (green) or "Private" (red) — visibility
+  Lore line 2: Fee line or "Free" (green)
+  Lore line 3: "Click to manage" (yellow)
+
+  The "Owner: You" lore and the hardcoded "Category: Mine" are REMOVED.
+  Since this is the Owned tab, ownership is implicit — no need to state it.
+
+--- SCREEN C: PUBLIC PINPOINTS (Category List — Public) ---
+
+Size: 54 slots (6 rows)
+Title: "Public Pinpoints" (aqua)
+
+  Identical layout to Screen B.
+
+Content item lore (Public):
+  Name: [icon material] [waypoint name] (white)
+  Lore line 1: "Owner: [name]" (gray)
+  Lore line 2: Fee line or "Free" (green)
+  Lore line 3: "Click to teleport" (yellow)
+
+  Note: "Public" visibility lore is removed — it's redundant when every item
+  in this tab is already public. The tab title communicates this.
+
+--- SCREEN D: INVITED PINPOINTS (Category List — Invited) ---
+
+Size: 54 slots (6 rows)
+Title: "Invited" (yellow)
+
+  Identical layout to Screen B.
+
+Content item lore (Invited):
+  Name: [icon material] [waypoint name] (white)
+  Lore line 1: "Owner: [name]" (gray)
+  Lore line 2: "Private — you have access" (aqua)
+  Lore line 3: Fee line or "Free" (green)
+  Lore line 4: "Click to teleport" (yellow)
+
+  Note: "Private" is worth stating here — it tells the player why this
+  Pinpoint appears in the Invited tab rather than Public.
+
+--- SCREEN E: MANAGE GUI (unchanged from current, Back updated) ---
+
+  All slots unchanged except:
+    Slot 22: Back → now returns to "My Pinpoints" category list (not flat Hub)
+
+  Slot 14 (Get Pinpoint Compass) is a candidate for removal — see Section 5.
+
+--- SCREEN F: USE GUI (unchanged from current, improvements noted) ---
+
+  Recommended: add fillBorder() to match all other GUIs (cosmetic consistency).
+    Slot 22: Back → returns to the correct category list (Public or Invited)
+
+================================================================================
+SECTION 4 — BEDROCK COMPATIBILITY CONCERNS
+================================================================================
+
+The plugin soft-depends on Geyser-Spigot. GuiManager.java contains ZERO
+platform-detection code — every GUI is rendered identically for Java and Bedrock.
+Geyser translates Java chest inventory events to Bedrock's container UI.
+
+The following concerns apply specifically to Bedrock players:
+
+4.1 LORE VISIBILITY
+  Java: lore appears on mouse hover — instantly scannable.
+  Bedrock: lore is only visible when an item is actively selected (touched/tapped).
+  Impact: status info currently buried in lore (visibility, fee, owner) is
+  harder to scan on Bedrock.
+  Mitigation in the proposed design: move the most important status into the
+  item name where possible. For the Hub Landing, include the count in the
+  button name itself ("My Pinpoints (3)") rather than only in lore. For
+  category lists, "Free" vs fee amount can appear in lore line 2 — acceptable
+  since the player has to interact with the item to teleport anyway.
+
+4.2 CATEGORY SELECTOR (Hub Landing)
+  Three large, clearly named buttons on a 3-row chest work very well on Bedrock.
+  Bedrock players tap one button → one screen. This is simpler than the current
+  flat list where Bedrock players must scroll and read small lore entries.
+  The Hub Landing screen actively improves the Bedrock experience.
+
+4.3 GLASS PANE BORDERS
+  Render correctly on Bedrock via Geyser. Gray stained glass panes are fine.
+
+4.4 ITEM NAMES AND COLORS
+  Adventure API Component text (NamedTextColor.*) passes through Geyser without
+  issue. Colors render correctly in Bedrock's container UI.
+
+4.5 CLICK EVENTS
+  Geyser maps Bedrock container taps to Java InventoryClickEvent normally.
+  getRawSlot() is reliable. No platform-specific click handling is needed.
+
+4.6 PLAYER_HEAD RENDERING
+  Bedrock does not render custom player head textures through Geyser in all
+  versions. The Invite GUI uses player skulls (makeSkull). On Bedrock, these
+  may render as blank/default heads. This is a known Geyser limitation and is
+  not new — it exists in the current Invite GUI. The player name label remains
+  correct. No action needed now, but noted for future reference.
+
+4.7 DYNAMIC INVENTORY SIZING
+  Geyser handles all standard chest sizes (9, 18, 27, 36, 45, 54 slots).
+  The dynamic sizing in Invite GUI and Icon Select GUI works on Bedrock.
+
+4.8 ACTION BAR MESSAGES
+  player.sendActionBar() works on Bedrock via Geyser. The direction-set
+  and fee confirmations that use action bars will appear correctly.
+
+Summary: the proposed category reorganization does not introduce any new
+Bedrock compatibility risks. The Hub Landing screen and category lists are
+strictly simpler (fewer items on screen, clearer structure) which improves
+the Bedrock experience relative to the current dense flat list.
+
+================================================================================
+SECTION 5 — CLUTTER AND CLICK REDUCTION SUGGESTIONS
+================================================================================
+
+5.1 REMOVE HARDCODED "Category: Mine" FROM HUB LORE  [low effort, immediate]
+  GuiManager.java:175 — "Category: Mine" is always shown for owned waypoints
+  regardless of icon type. It carries no useful information and contradicts the
+  tab-based organization being proposed. Delete this lore line.
+
+5.2 BLOCK RIGHT-CLICK SKIPS HUB ENTIRELY  [medium effort]
+  Currently: right-click block → Hub GUI (with slot 49 "This Pinpoint" button)
+             → click slot 49 → Manage GUI. That's two clicks.
+  Proposed:  right-click block → Manage GUI directly.
+  The focusedWaypointId / fromBlock machinery in the Hub exists entirely to
+  serve this use case. Eliminating it removes the slot 49 button, simplifies
+  renderHubGui(), and makes the block interaction feel immediate.
+  Non-owners right-clicking a block would go directly to Use GUI.
+
+5.3 ADD BORDER TO USE GUI  [trivial effort]
+  openUseGui() is the only GUI without fillBorder(). Add one line. Cosmetic
+  consistency matters — every other screen has a border.
+
+5.4 REMOVE OR RELOCATE "Get Pinpoint Compass" FROM MANAGE GUI  [low effort]
+  Slot 14 gives the player a Pinpoint Compass item. This is a convenience
+  shortcut but is unrelated to managing this specific waypoint. It is out of
+  place next to Rename, Delete, Change Icon. Options:
+    a) Remove it — players can use /wp give or craft it.
+    b) Move it to the Hub Landing screen as a small utility button.
+  Removing it simplifies the Manage GUI from up to 9 buttons to 8.
+
+5.5 REDUNDANT LORE IN CATEGORY LISTS  [low effort]
+  Once waypoints are split into category tabs:
+    - "Owner: You" is redundant in My Pinpoints — remove it.
+    - "Public" visibility is redundant in the Public tab — remove it.
+    - "Private" is useful in the Invited tab — keep it.
+  Each lore line removed is one less line Bedrock players must tap through.
+
+5.6 MERGE USE GUI INTO CATEGORY LIST (OPTIONAL / AGGRESSIVE)  [high effort]
+  Use GUI is a 3-item screen: display, teleport, back. The teleport is the
+  only action a non-owner can take. An alternative: single-click on a
+  non-owned waypoint in the category list opens a confirmation/teleport
+  immediately (with the waypoint info in a title bar), skipping Use GUI.
+  This saves one screen for the most common non-owner action.
+  Tradeoff: removes the preview step before a fee-gated teleport. Recommend
+  keeping Use GUI for now but deferring this as a future option.
+
+5.7 OFFLINE INVITE REVOCATION  [medium effort, separate feature]
+  The current Invite GUI only shows online players. A player who was invited
+  while online and then logged off cannot have their access revoked until they
+  return online. Proposed fix: add an "Invited Players" section to the Manage
+  GUI showing the current invite list (by name, regardless of online status),
+  with click-to-revoke per entry. This is separate from the category UX work.
+
+================================================================================
+SECTION 6 — IMPLEMENTATION NOTES (for when code work begins)
+================================================================================
+
+Files to change when implementing:
+  GuiManager.java   — main work: new openHubLanding(), refactor renderHubGui()
+                      into renderCategoryGui(player, category, page),
+                      add Category enum (OWNED, PUBLIC, INVITED),
+                      pass sourceCategory through Manage/Use/sub-GUI Back buttons
+  No other files need changes for the navigation restructure alone.
+
+The openHubGui(player, focusedWaypointId, fromBlock) signature changes:
+  - If focusedWaypointId != null AND fromBlock == true → go directly to Manage GUI
+    (bypasses Hub entirely — implements suggestion 5.2)
+  - Otherwise → open Hub Landing (new screen)
+
+Pagination state: hubPageMap currently stores a single int per player.
+  With 3 category lists, this needs to become a Map<UUID, Map<Category, Integer>>
+  or three separate maps.
+
+WaypointManager.getAccessibleWaypoints() returns all accessible waypoints.
+  Three new filtered views are needed (or filter inline):
+    getOwnedWaypoints(uuid)   → wp.isOwner(uuid)
+    getPublicWaypoints(uuid)  → wp.isPublic() && !wp.isOwner(uuid)
+    getInvitedWaypoints(uuid) → !wp.isPublic() && !wp.isOwner(uuid) && wp.isInvited(uuid)
+
+Counts for Hub Landing buttons: compute all three counts before rendering
+  the landing screen so each button lore line shows the correct number.
+
+================================================================================
+
+================================================================================
+ENTRY — 2026-06-05 (icon system simplified — v1.3.21)
+================================================================================
+
+Version: 1.3.21
+
+User Request:
+Remove all icon-lock complexity (enabled flags, hide-when-locked, locked lore,
+error messages). Replace with one rule: player has the permission → sees the icons;
+player doesn't → doesn't see them. OP should see all icons. Config should be a
+simple flat map.
+
+Work Performed:
+Rewrote icon picker logic in GuiManager.java. Cleaned config.yml. Bumped version.
+Updated changelog.txt and chatgpt.txt. Build performed (see below).
+
+Files Modified:
+  src/main/java/com/pinpoint/gui/GuiManager.java — replaced 7 methods/types with
+                                                    one buildPalette(Player); simplified
+                                                    openIconSelectGui lore+click logic
+  src/main/resources/config.yml                  — flat-list format; removed icon-locked-* messages
+  build.gradle.kts                               — 1.3.20 → 1.3.21
+  src/main/resources/plugin.yml                  — 1.3.20 → 1.3.21
+  changelog.txt
+  chatgpt.txt
+
+Design:
+
+CONFIG FORMAT (config.yml — icon-permissions section)
+  permission.node:
+    - MATERIAL_ONE
+    - MATERIAL_TWO
+
+  Rule: player.hasPermission(node) → those materials added to their picker palette.
+  No enabled, no hide-when-locked, no sub-keys. To disable a group: remove or comment it.
+
+PALETTE BUILDING (buildPalette(Player player))
+  Starts with ICON_PALETTE (10 base icons, always present).
+  Iterates permSec.getKeys(true) — returns all deep dotted paths.
+  For each path, getStringList() returns [] for intermediate section nodes (skipped)
+  and the actual list for leaf nodes. Leaf nodes where player.hasPermission() is
+  false are also skipped. All passing materials are appended to the palette.
+  This is the same Bukkit dot-splitting fix from v1.3.16 plus permission gating.
+
+REMOVED CODE
+  buildFullPalette(Player)  — replaced by buildPalette(Player)
+  buildLockedMap(Player)    — removed entirely
+  loadIconGroups()          — removed entirely
+  resolveMaterials()        — removed entirely
+  IconGroup record          — removed entirely
+  permToLabel()             — removed entirely
+  iconLockedMessage()       — removed entirely
+  openIconSelectGui: lockedMap variable, locked lore branch, lock-check in click handler
+
+REMOVED CONFIG KEYS
+  icon-locked-media, icon-locked-vip, icon-locked-admin, icon-locked-generic
+
+OP BEHAVIOR
+  Bukkit gives OP players all permissions (hasPermission returns true for any node).
+  OP sees all base icons + all permission-gated icons from all groups in config.
+
+================================================================================
+ENTRY — 2026-06-05 (per-group icon visibility controls — v1.3.20)
+================================================================================
+
+Version: 1.3.20
+
+User Request:
+Players see VIP/Media icon slots in the icon picker even though those roles don't
+exist on the server yet. Goal: make every icon group fully configurable from
+config.yml — enable/disable per group, hide vs show-locked per group. Default
+config should be safe for servers without VIP/Media roles.
+
+Work Performed:
+Redesigned icon-permissions config format. Updated GuiManager.java parsing logic.
+Bumped version. Updated changelog.txt and chatgpt.txt. Build performed (see below).
+
+Files Modified:
+  src/main/java/com/pinpoint/gui/GuiManager.java — loadIconGroups(), buildFullPalette(Player),
+                                                    buildLockedMap(), resolveMaterials(), IconGroup record
+  src/main/resources/config.yml                  — icon-permissions restructured to new format
+  build.gradle.kts                               — 1.3.19 → 1.3.20
+  src/main/resources/plugin.yml                  — 1.3.19 → 1.3.20
+  changelog.txt
+  chatgpt.txt
+
+Design:
+
+CONFIG FORMAT (config.yml — icon-permissions section)
+
+  Old format (still supported for backwards compatibility):
+    icon-permissions:
+      pinpoint.icons.media:
+        - NOTE_BLOCK
+        - JUKEBOX
+    → treated as enabled=true, hide-when-locked=false
+
+  New format:
+    icon-permissions:
+      pinpoint.icons.media:
+        enabled: false           # false = group hidden for everyone
+        hide-when-locked: true   # true = players without perm see nothing
+        icons:
+          - NOTE_BLOCK
+          - JUKEBOX
+
+  Default config (v1.3.20):
+    media:  enabled=false, hide-when-locked=true  → invisible until enabled
+    vip:    enabled=false, hide-when-locked=true  → invisible until enabled
+    admin:  enabled=true,  hide-when-locked=true  → hidden from non-admins (op has perm)
+
+PARSING LOGIC (GuiManager.java — loadIconGroups)
+
+  Iterates permSec.getKeys(true). For each key:
+  - If value is a ConfigurationSection with an "icons" sub-key → new format group.
+    Reads enabled, hide-when-locked, icons. Tracks key as a prefix so sub-keys
+    (enabled, hide-when-locked, icons) are skipped in subsequent iterations.
+  - If value is a List → old format group (backwards compat).
+    Key is the permission node; list is the material names.
+
+  Returns List<IconGroup> — one entry per enabled group.
+
+PALETTE BUILDING (buildFullPalette(Player player))
+
+  Starts with base ICON_PALETTE (10 items, always shown, always selectable).
+  For each IconGroup:
+    - If hide-when-locked=true AND player lacks permission → skip (group not added).
+    - Otherwise → add group's icons to palette (some may be locked in buildLockedMap).
+
+LOCKED MAP (buildLockedMap(Player player))
+
+  For each IconGroup where player lacks permission AND hide-when-locked=false:
+    marks each material as locked with the group's permission string.
+  Locked icons appear in the picker with red "Requires: X" lore and error on click.
+
+COMPATIBILITY
+  Old config format (flat list under perm key): still parsed and treated as
+  enabled=true, hide-when-locked=false. No config migration required if the old
+  format is kept. Behavior change: VIP/Media groups that were previously shown
+  locked will be hidden if the server updates config to enabled=false.
+
+  Existing Pinpoint icon selections are never changed — only updated when owner clicks.
+
+================================================================================
+ENTRY — 2026-06-05 (remove creation-time direction prompt — v1.3.19)
+================================================================================
+
+Version: 1.3.19
+
+User Request:
+Remove the automatic facing-direction prompt that opens when a player creates
+a new Pinpoint. The direction picker in the Manage GUI must remain untouched.
+After creation, players can still choose a direction later via the Manage GUI.
+If no direction is chosen, the fallback (block-location yaw) applies.
+
+Work Performed:
+Removed two lines from ChatInputListener.java (comment + openDirectionPickerGui call).
+Bumped version. Updated changelog.txt and chatgpt.txt. Build successful.
+
+Files Modified:
+  src/main/java/com/pinpoint/listeners/ChatInputListener.java — removed creation-time openDirectionPickerGui call
+  build.gradle.kts                                             — 1.3.18 → 1.3.19
+  src/main/resources/plugin.yml                               — 1.3.18 → 1.3.19
+  changelog.txt
+  chatgpt.txt
+
+Design:
+
+CREATION FLOW (ChatInputListener.java — waypoint naming handler)
+  Before: after createWaypoint() + "waypoint-named" message, called
+    plugin.getGuiManager().openDirectionPickerGui(player, wp, false);
+  After: that call (and its comment) removed. Creation ends at the success message.
+
+DEFAULT FALLBACK (TeleportHelper.doTeleport)
+  When neither hasTeleportDirection() nor hasTeleportYaw() is true on the waypoint,
+  the safe-spot location's yaw/pitch pass through unchanged from the block's stored
+  coordinates (yaw=0, pitch=0 → South-facing). This was always the fallback; no new
+  code required.
+
+================================================================================
+ENTRY — 2026-06-05 (creation-flow direction picker + legacy yaw migration — v1.3.18)
+================================================================================
+
+Version: 1.3.18
+
+User Request:
+Direction picker exists in the Manage GUI but is not part of the Pinpoint creation
+flow. Player exact yaw is still mentioned as stored at creation time. Requirements:
+(1) Remove precise yaw from the creation/edit workflow; (2) Show cardinal direction
+picker after naming a new Pinpoint; (3) Auto-migrate existing teleport-yaw data to
+nearest cardinal on load; (4) Keep all other systems unchanged.
+
+Work Performed:
+Modified ChatInputListener.java, WaypointStorage.java, GuiManager.java.
+Bumped version. Updated changelog.txt and chatgpt.txt. Build successful.
+
+Files Modified:
+  src/main/java/com/pinpoint/listeners/ChatInputListener.java — open direction picker after creation
+  src/main/java/com/pinpoint/data/WaypointStorage.java        — auto-migrate yaw on load; simplify save
+  src/main/java/com/pinpoint/gui/GuiManager.java              — remove legacy hasTeleportYaw() display branch
+  build.gradle.kts                                             — 1.3.17 → 1.3.18
+  src/main/resources/plugin.yml                               — 1.3.17 → 1.3.18
+  changelog.txt
+  chatgpt.txt
+
+Build Result:
+  build/libs/Pinpoint-1.3.18.jar (100K, 2026-06-05)
+  BUILD SUCCESSFUL
+
+Design:
+
+CREATION FLOW (ChatInputListener.java)
+  After plugin.getWaypointManager().createWaypoint() and sendMessage("waypoint-named"),
+  a new call to plugin.getGuiManager().openDirectionPickerGui(player, wp, false) opens
+  the 4-button cardinal picker immediately.
+  The player must pick a direction (or click Back/Clear) before the GUI closes.
+  Clicking Back → opens Manage GUI for the new Pinpoint.
+  Clicking a direction → saves, action bar confirmation, returns to Manage GUI.
+  Clicking Clear (Barrier) → no direction stored, returns to Manage GUI.
+
+AUTO-MIGRATION (WaypointStorage.java — loadAll)
+  Old path: teleport-yaw present → wp.setTeleportYaw(yaw)  [removed]
+  New path: teleport-yaw present → wp.setTeleportDirection(yawToCardinal(yaw))
+  yawToCardinal() maps yaw (normalized 0-360) to nearest 90° sector:
+    [315, 45)  → SOUTH   (yaw 0 is South in Minecraft)
+    [45,  135) → WEST
+    [135, 225) → NORTH
+    [225, 315) → EAST
+  This is an in-memory migration only. The YAML is updated to teleport-direction
+  and old keys removed on the next saveWaypoint() call (any owner edit).
+
+SAVE SIMPLIFICATION (WaypointStorage.java — saveWaypoint)
+  Old: three-branch if/else for direction vs yaw vs neither
+  New: single expression — teleport-direction set or nulled; teleport-yaw and
+       teleport-pitch always nulled. Ensures old keys are removed from YAML on
+       any save, even if no direction change was made by the user.
+
+GUI CLEANUP (GuiManager.java — openManageGui)
+  Removed the hasTeleportYaw() else-if branch from the facing lore and title
+  computation. All data is now either null (no direction) or a cardinal string —
+  the legacy yaw branch is unreachable after auto-migration.
+  openDirectionPickerGui() unchanged.
+
+COMPATIBILITY
+  Existing Pinpoints without any direction data: unchanged — no direction shown,
+  teleport lands at safe-spot default (yaw=0, faces South).
+  Existing Pinpoints with teleport-direction: unchanged — already cardinal.
+  Existing Pinpoints with teleport-yaw: auto-migrated on load to nearest cardinal.
+    No data loss — the nearest cardinal is applied and persisted on next owner edit.
+  All other systems (fees, cooldowns, party, holograms) untouched.
+
+================================================================================
+ENTRY — 2026-06-04 (cardinal direction picker — v1.3.17)
+================================================================================
+
+Version: 1.3.17
+
+User Request:
+Replace the "Set Facing Direction" exact yaw/pitch system with a simple
+cardinal direction picker (North, South, East, West). Store direction as a
+string. Backward-compatible with existing teleport-yaw/pitch data. Build.
+
+Work Performed:
+Modified Waypoint.java, WaypointStorage.java, TeleportHelper.java,
+GuiManager.java. Bumped version. Updated changelog.txt and chatgpt.txt.
+Build successful.
+
+Files Modified:
+  src/main/java/com/pinpoint/data/Waypoint.java
+  src/main/java/com/pinpoint/data/WaypointStorage.java
+  src/main/java/com/pinpoint/util/TeleportHelper.java
+  src/main/java/com/pinpoint/gui/GuiManager.java
+  build.gradle.kts                              — 1.3.16 → 1.3.17
+  src/main/resources/plugin.yml                 — 1.3.16 → 1.3.17
+  changelog.txt
+  chatgpt.txt
+
+Build Result:
+  build/libs/Pinpoint-1.3.17.jar (100K, 2026-06-04)
+  BUILD SUCCESSFUL
+
+Design:
+
+DATA MODEL (Waypoint.java)
+  New field: String teleportDirection (null = not set)
+  New methods: hasTeleportDirection(), getTeleportDirection(),
+               setTeleportDirection(String), clearTeleportDirection()
+  setTeleportDirection(String) clears old teleportYaw/teleportPitch when called.
+  Old yaw/pitch fields and their getters/setters kept for migration.
+  Old setTeleportDirection(float, float) removed (no remaining callers).
+
+STORAGE (WaypointStorage.java)
+  Load: reads teleport-direction first; falls back to teleport-yaw/pitch.
+  Save: writes teleport-direction and nulls old keys; OR writes old keys if
+        no direction set; OR nulls all three if nothing set.
+  Old Pinpoints load correctly — teleport-yaw/pitch still read.
+  When owner sets a new direction: old keys are removed from YAML on next save.
+
+TELEPORT (TeleportHelper.java)
+  doTeleport() priority: hasTeleportDirection() first → directionToYaw();
+  else hasTeleportYaw() → old yaw/pitch; else no facing override.
+  Yaw mapping: NORTH=180, SOUTH=0, EAST=-90, WEST=90. Pitch always 0 (level).
+
+GUI (GuiManager.java)
+  Manage GUI slot 21: button now reads new OR legacy state for display;
+  click opens openDirectionPickerGui() instead of immediately saving angle.
+  Direction picker (27-slot, 3-row GUI):
+    Slot 10: BLUE_CONCRETE  — North
+    Slot 12: RED_CONCRETE   — South
+    Slot 14: GREEN_CONCRETE — East
+    Slot 16: YELLOW_CONCRETE — West
+    Slot 21: BARRIER        — Clear Direction
+    Slot 23: ARROW          — Back
+  Currently set direction shows green "Currently set" lore; others yellow.
+  pitchToDescription() removed (dead code). capitalize() helper added.
+
+MIGRATION
+  Existing waypoints with teleport-yaw/pitch: continue working, no data loss.
+  When owner opens direction picker and picks any direction: converted to
+  new system on save; old keys removed. No automatic migration.
+
+Testing Checklist:
+
+  1. New Pinpoint, no direction set:
+     - Manage GUI slot 21 shows "Facing Direction", lore "Not set".
+     - Click opens 3-row "Facing Direction" GUI with 4 colored blocks.
+     - No block shows "Currently set".
+     - Teleport lands player facing safe-spot default direction.
+
+  2. Set a direction (e.g., North):
+     - Click North (blue concrete).
+     - Action bar: "Facing direction set to North."
+     - Returns to Manage GUI; slot 21 now shows "Facing: North".
+     - Lore shows "Direction: North".
+     - Reopen direction picker — North block shows "Currently set" (green lore).
+     - Teleport lands player facing north.
+
+  3. Change direction (e.g., North → West):
+     - Open picker, click West.
+     - Returns to Manage GUI; slot 21 updates to "Facing: West".
+     - Teleport lands player facing west.
+
+  4. Clear direction:
+     - Open picker, click Clear Direction (Barrier).
+     - Action bar: "Facing direction cleared."
+     - Manage GUI slot 21 reverts to "Facing Direction" / "Not set".
+     - Teleport resumes default facing behavior.
+
+  5. Legacy yaw/pitch migration (if any existing Pinpoints have teleport-yaw):
+     - Manage GUI slot 21 shows "Facing: [direction name from old yaw]".
+     - Teleport uses old yaw/pitch unchanged.
+     - Open direction picker and pick South.
+     - waypoints.yml: teleport-direction: SOUTH present, teleport-yaw/pitch absent.
+     - Teleport now uses new cardinal (South).
+
+  6. Bedrock (Geyser) player:
+     - Confirm direction picker GUI opens and renders correctly.
+     - Confirm clicking a direction works.
+
+*** UUID CORRECTION (2026-06-04) ***
+Entries prior to 2026-06-04 have the server UUIDs REVERSED. Correct mapping:
+  TEST server  (low plugin count):  2241bcf6-5a50-4b43-ac05-43ce90bcc571
+  MAIN server  (full plugin stack): 4b5d118d-ab59-41c5-b377-4c6ff75f7558
+All future entries use the corrected mapping.
+*************************************
+
+================================================================================
+ENTRY — 2026-06-04 (root cause: icon picker still shows only 10 icons after all fixes)
+================================================================================
+
+Version: 1.3.16
+
+User Request:
+Icon picker still shows only the original 10 base icons. All previously suggested
+fixes (correct JAR installed, config.yml updated, reload performed, OP on server)
+have been applied. Find the actual root cause. Do not suggest config or server
+changes. Code path investigation required.
+
+Work Performed:
+Read GuiManager.java, PinpointPlugin.java, src/main/resources/config.yml,
+live test server config.yml, chatgpt.txt. Verified JAR checksums. Inspected
+compiled .class files for method presence. Decompiled MemorySection.class from
+Paper API to confirm dot-splitting behavior. Fixed the bug. Built 1.3.16.
+
+Files Modified:
+  src/main/java/com/pinpoint/gui/GuiManager.java   — buildFullPalette(), buildLockedMap()
+  build.gradle.kts                                  — version 1.3.15 → 1.3.16
+  src/main/resources/plugin.yml                     — version 1.3.15 → 1.3.16
+  chatgpt.txt                                       — this entry
+
+Build Result:
+  build/libs/Pinpoint-1.3.16.jar (98K, 2026-06-04)
+  BUILD SUCCESSFUL
+
+Explanation:
+
+STEP 1 — JAR confirmed correct
+-------------------------------
+/DATA/AppData/crafty/servers/4b5d118d-.../plugins/Pinpoint-1.3.15.jar
+md5 matches build/libs/Pinpoint-1.3.15.jar exactly. The correct JAR is installed.
+
+STEP 2 — Config confirmed correct
+----------------------------------
+Test server config.yml at:
+  /DATA/AppData/crafty/servers/4b5d118d-.../plugins/Pinpoint/config.yml
+Contains the full icon-permissions section and all icon-locked-* messages.
+Config is not the problem.
+
+STEP 3 — Root cause identified: Bukkit YAML dot-splitting
+----------------------------------------------------------
+The bug is in GuiManager.buildFullPalette() and buildLockedMap(). Both methods
+call permSec.getKeys(false) to iterate the icon-permissions config section.
+
+The config.yml has keys like:
+  icon-permissions:
+    pinpoint.icons.media:
+      - NOTE_BLOCK
+
+Bukkit's YamlConfiguration (via MemorySection.set()) splits ALL dotted path
+components when loading YAML. "pinpoint.icons.media" is NOT stored as a flat
+key — it is stored as a nested path:
+  icon-permissions → pinpoint → icons → media
+
+Confirmed by decompiling MemorySection.class: the set() and get() methods
+both use String.indexOf() with '.' as separator and iterate path components.
+
+As a result:
+  permSec.getKeys(false)         → ["pinpoint"]  (only the top-level node)
+  permSec.getStringList("pinpoint")  → []  (it's a section, not a list)
+
+The inner loop never executes. Zero extra icons are added. buildLockedMap()
+has the identical bug — it also uses getKeys(false).
+
+This means the icon-permissions feature has NEVER worked since it was
+introduced in v1.3.14. Every reported symptom was consistent with this bug:
+correct config, correct JAR, still only 10 base icons.
+
+STEP 4 — Fix
+------------
+Changed getKeys(false) → getKeys(true) in both buildFullPalette() and
+buildLockedMap(). getKeys(true) returns all deep paths including leaf keys:
+  ["pinpoint", "pinpoint.icons", "pinpoint.icons.media",
+   "pinpoint.icons.vip", "pinpoint.icons.admin"]
+
+For each deep key, getStringList(key) is called:
+  - Intermediate section nodes (e.g. "pinpoint", "pinpoint.icons") return []
+  - Leaf nodes (e.g. "pinpoint.icons.media") return the actual material list
+A `if (matNames.isEmpty()) continue;` guard skips intermediate nodes.
+
+The permission string used in buildLockedMap() is now the full dotted path
+(e.g. "pinpoint.icons.media"), which matches:
+  - player.hasPermission("pinpoint.icons.media")  ✓
+  - iconLockedMessage() switch cases              ✓
+  - permToLabel() which splits on "." to get last component  ✓
+
+The fix required no config changes and no YAML format changes.
+
+EXACT ROOT CAUSE SUMMARY
+------------------------
+  Problem:    getKeys(false) only returns top-level node "pinpoint" — not the
+              full permission paths — because Bukkit splits dotted YAML keys
+              into nested sections on load.
+  Location:   GuiManager.buildFullPalette() and buildLockedMap() (both methods)
+  Fix:        getKeys(true) + isEmpty() guard to skip intermediate sections
+  Config:     Was already correct — did not need to be changed
+  JAR:        Was already the right version — did not need to be replaced
+  Code:       This was the only actual bug. Now fixed in 1.3.16.
+
+Testing Checklist:
+After replacing Pinpoint-1.3.15.jar with Pinpoint-1.3.16.jar on the test server
+and restarting:
+
+  1. Open icon picker as OP (owner with all permissions):
+     - Expected: 6-row inventory (54 slots).
+     - Expected: 24 icons visible (10 base + 14 permission-gated).
+     - Expected: ALL 24 icons are selectable (OP has all permissions).
+     - Expected: No "Requires:" lore on any icon.
+
+  2. Open icon picker as non-OP without special permissions:
+     - Expected: 6-row inventory, 24 icons.
+     - Expected: 14 extra icons show red "Requires: Media/Vip/Admin" lore.
+     - Expected: Clicking a locked icon shows the error message, GUI stays open.
+
+  3. Grant pinpoint.icons.vip to a non-OP and reopen — VIP icons unlock.
+
+Known Issues:
+  - Both live server configs are still missing holograms.view-distance and
+    holograms.require-line-of-sight. Code falls back to defaults (8 and true).
+
+Recommended Next Task:
+  1. Replace Pinpoint-1.3.15.jar with Pinpoint-1.3.16.jar on test server.
+  2. Restart test server.
+  3. Run testing checklist above.
+  4. After confirming: deploy 1.3.16 to main server.
+  5. Consider a config migration step in onEnable() for future-proofing.
+
+================================================================================
+ENTRY — 2026-06-03 (investigation: icons still not showing on test server)
+================================================================================
+
+Version: 1.3.15 (intended) / 1.3.14 (what is actually running on test server)
+
+User Request:
+Icon picker still shows only the original 10 base icons on the test server even
+after installing the new JAR, restarting, adding icon-permissions to config.yml,
+and adding icon-locked-* messages. Investigate the test server only. Identify the
+exact root cause. Do not change code. Do not build unless necessary.
+
+Work Performed:
+Read-only investigation. No code changes. No build. No server interaction.
+
+Identified the two Crafty server instances and determined which is the test server
+by inspecting plugin directory contents. Read the installed JAR's plugin.yml to
+confirm the exact version running. Read the live config.yml to confirm which keys
+are present. Cross-referenced against the build output and changelog.
+
+Files Modified:
+None. Investigation only.
+(The JAR replacement described below has NOT been applied — awaiting user action.)
+
+Build Result:
+No build performed. The correct JAR already exists at:
+  /home/pi/plugins/Pinpoint/build/libs/Pinpoint-1.3.15.jar (100180 bytes, built 2026-06-03 22:31)
+
+Explanation:
+
+STEP 1 — Server identification
+-------------------------------
+Two Crafty server instances exist:
+
+  Server A (main/live):  2241bcf6-5a50-4b43-ac05-43ce90bcc571
+                         JAR: Pinpoint-1.3.15.jar (100180 bytes)
+                         This is the production server (has DiscordSRV, BreweryX,
+                         BetterTeams, ClaimChest, TotemAltars, Bops, etc.)
+
+  Server B (test):       4b5d118d-ab59-41c5-b377-4c6ff75f7558
+                         JAR: Pinpoint-1.3.14.jar (99320 bytes)  ← WRONG VERSION
+                         This is the test server (subset of plugins, no custom jars)
+
+STEP 2 — JAR version confirmed
+-------------------------------
+Extracted plugin.yml from the installed test server JAR:
+  version: '1.3.14'
+
+The user intended to install 1.3.15. The test server is running 1.3.14.
+
+STEP 3 — Config confirmed correct
+----------------------------------
+The test server's config.yml at:
+  /DATA/AppData/crafty/servers/4b5d118d-.../plugins/Pinpoint/config.yml
+was edited in the previous session and IS correct. It contains:
+  - icon-locked-media, icon-locked-vip, icon-locked-admin, icon-locked-generic (messages)
+  - The complete icon-permissions section with all 14 materials across 3 groups
+The config is not the problem.
+
+STEP 4 — Why 1.3.14 produces this symptom
+-------------------------------------------
+v1.3.14 introduced icon-permissions with the OLD filtering behavior:
+  "Players without the permission never see those icons in the picker."
+  (changelog.txt, v1.3.14 entry)
+
+In the 1.3.14 compiled code, buildFullPalette() only adds a material to the
+palette if the player HAS the corresponding permission. A player without
+pinpoint.icons.media, .vip, or .admin permissions sees only the 10 base icons.
+This is by design in 1.3.14 — it is not a bug in that version.
+
+v1.3.15 changed this to the "visible-but-locked" model. In 1.3.15,
+buildFullPalette() adds ALL materials from all permission groups unconditionally.
+buildLockedMap() then marks which ones the player lacks permission for, and those
+are shown with red "Requires: X" lore instead of being hidden.
+
+Because the test server is running 1.3.14 code:
+  - icon-permissions IS read from config (the feature existed in 1.3.14)
+  - But only icons the player has permission for are added to the palette
+  - A player with no special permissions sees exactly 10 icons
+  - This matches the reported symptom exactly
+
+STEP 5 — No duplicate JARs, no second picker path
+---------------------------------------------------
+Only one Pinpoint JAR exists in the test server's plugins directory:
+  Pinpoint-1.3.14.jar
+There is no 1.3.15 jar present. There is no stale or duplicate jar.
+openIconSelectGui() has exactly one call site in the codebase (GuiManager.java:324).
+There is no second icon picker implementation.
+
+STEP 6 — Inventory size and slot placement are irrelevant here
+---------------------------------------------------------------
+The palette never reaches 24 items in 1.3.14 for an unpermissioned player.
+The inventory is correctly sized for whatever palette size is returned (the sizing
+code is the same in both 1.3.14 and 1.3.15). There is no slot placement bug.
+The root cause is entirely the palette filtering logic in the 1.3.14 binary.
+
+EXACT ROOT CAUSE SUMMARY
+-------------------------
+  Problem:     Test server is running Pinpoint-1.3.14.jar, not 1.3.15.
+  File:        /DATA/AppData/crafty/servers/4b5d118d-.../plugins/Pinpoint-1.3.14.jar
+  Method:      buildFullPalette() in the compiled 1.3.14 GuiManager class
+  Behavior:    Filters icons by player permission (old design)
+  Category:    Wrong JAR — the 1.3.15 JAR was never installed on the test server
+  Config:      Correct — icon-permissions and all message keys are present
+  Code:        Correct — the 1.3.15 source has the right behavior
+  YAML:        Valid — no structural issues found
+
+Important Notes:
+  - The 1.3.15 JAR is already built and ready:
+      /home/pi/plugins/Pinpoint/build/libs/Pinpoint-1.3.15.jar
+  - The config on the test server is already correct and does not need to be changed.
+  - When replacing the JAR, the old Pinpoint-1.3.14.jar MUST be removed from the
+    plugins directory before restarting. Paper will fail to load if two JARs
+    declare the same plugin name. Having both present will cause a startup error.
+  - The main/live server (2241bcf6) already has 1.3.15 installed and does not
+    need to be touched.
+
+Testing Checklist:
+After replacing Pinpoint-1.3.14.jar with Pinpoint-1.3.15.jar on the test server
+and restarting:
+
+  1. Open icon picker as owner with NO special permissions:
+     - Expected: 6-row inventory (54 slots), not 4-row (36 slots).
+     - Expected: 24 icons visible.
+     - Expected: 14 extra icons show red lore "Requires: Media / Vip / Admin".
+     - Expected: clicking a locked icon shows the correct chat message, not blank.
+     - Expected: GUI stays open after clicking locked icon.
+
+  2. Confirm the 10 base icons are still selectable as normal.
+
+  3. Grant pinpoint.icons.media to a player and reopen picker — those 5 icons
+     should now be unlocked.
+
+Known Issues:
+  - The test server was never running 1.3.15. The reported restart "with the new
+    jar" did not place 1.3.15 on the test server — only on the main server.
+  - The main/live server (2241bcf6) has 1.3.15 installed but has never been
+    tested for the icon feature in-game.
+  - Both servers are still missing holograms.view-distance and
+    holograms.require-line-of-sight in their config.yml (lower priority, code
+    uses fallback defaults).
+
+Recommended Next Task:
+  1. Remove Pinpoint-1.3.14.jar from the test server plugins directory.
+  2. Copy /home/pi/plugins/Pinpoint/build/libs/Pinpoint-1.3.15.jar to
+     /DATA/AppData/crafty/servers/4b5d118d-ab59-41c5-b377-4c6ff75f7558/plugins/
+  3. Restart the test server.
+  4. Run the testing checklist above.
+  5. After confirming the feature works on the test server, consider adding the
+     config migration step to PinpointPlugin.onEnable() so this class of problem
+     (missing config keys after JAR update) cannot recur.
+
+================================================================================
+ENTRY — 2026-06-03 (config fix applied to both live servers)
+================================================================================
+
+Version: 1.3.15
+
+User Request:
+Icons still not showing after restarting with the new jar. Check the actual live
+server config.yml (not the repo copy) and confirm whether icon-permissions and
+the icon-locked-* messages are present. If missing, add them manually. Do not
+change code, do not build, do not restart the server.
+
+Work Performed:
+Re-read both live server config.yml files. Confirmed that NEITHER had been
+updated — both were still the pre-1.3.14 file with no icon-permissions section
+and no icon-locked-* messages. The previous investigation had identified this as
+the root cause but had not yet applied the fix.
+
+Manually edited both files using the Edit tool (no server restart required —
+a /wp reload in-game is sufficient to apply):
+
+Added to the messages section of both files (after teleport-cancelled-damaged):
+  icon-locked-media: "&cYou need the Media role to use this icon."
+  icon-locked-vip: "&cYou need the VIP role to use this icon."
+  icon-locked-admin: "&cYou need the Admin role to use this icon."
+  icon-locked-generic: "&cYou don't have permission to use this icon."
+
+Added as a new top-level section at the bottom of both files:
+  icon-permissions:
+    pinpoint.icons.media:
+      - NOTE_BLOCK
+      - JUKEBOX
+      - SPYGLASS
+      - PAINTING
+      - GLOW_ITEM_FRAME
+    pinpoint.icons.vip:
+      - GOLD_BLOCK
+      - DIAMOND_BLOCK
+      - NETHER_STAR
+      - BEACON
+      - TOTEM_OF_UNDYING
+    pinpoint.icons.admin:
+      - COMMAND_BLOCK
+      - SPAWNER
+      - STRUCTURE_BLOCK
+      - BEDROCK
+
+No code was changed. No build was performed.
+
+Files Modified:
+  /DATA/AppData/crafty/servers/2241bcf6-5a50-4b43-ac05-43ce90bcc571/plugins/Pinpoint/config.yml
+  /DATA/AppData/crafty/servers/4b5d118d-ab59-41c5-b377-4c6ff75f7558/plugins/Pinpoint/config.yml
+
+Build Result:
+No build. Config-only change.
+
+Explanation:
+Both live config files were confirmed (by direct read) to still be the old
+pre-1.3.14 versions — identical to what the previous investigation found. They
+had not been manually edited between sessions. The restart with the new jar did
+not help because saveDefaultConfig() (called in PinpointPlugin.onEnable()) only
+writes the bundled config when the file does not already exist. Since both files
+existed, the new keys were never written to disk. The plugin loaded the stale
+config on startup and buildFullPalette() got null for the icon-permissions
+section, returning only 10 base icons.
+
+The fix was to add the missing keys directly to the live files. The files are
+now complete with all keys the current code expects.
+
+Important Notes:
+  - A server restart is NOT required to apply this fix. Run /wp reload on each
+    server and the config will be re-read from disk.
+  - If the server has already been restarted and is running, the in-memory config
+    is still stale until /wp reload is run.
+  - Both servers received identical changes. If you have a third server running
+    Pinpoint, it will need the same additions.
+  - This exact problem will recur for any future config additions unless a code
+    fix is made to merge new keys on startup. That is the recommended next task.
+
+Testing Checklist:
+  1. Run /wp reload on the server (or restart it — either works).
+  2. Open a Pinpoint's Manage GUI as the owner → click Change Icon.
+  3. Confirm the inventory is 6 rows (54 slots) instead of the old 4 rows (36).
+  4. Confirm 24 icons are visible: 10 base icons + 14 permission-gated icons.
+  5. Confirm the 14 extra icons show red lore "Requires: Media", "Requires: Vip",
+     or "Requires: Admin" (depending on the group) for a player without those perms.
+  6. Click a locked icon and confirm a non-empty error message appears in chat:
+       Media icon  → "You need the Media role to use this icon."
+       VIP icon    → "You need the VIP role to use this icon."
+       Admin icon  → "You need the Admin role to use this icon."
+  7. Grant pinpoint.icons.vip to a player, reopen the picker, confirm VIP icons
+     are now unlocked and selectable, media/admin icons still locked.
+
+Known Issues:
+  - The underlying code-level problem (saveDefaultConfig() does not merge new
+    keys) is not fixed. Any future config additions will silently fail the same
+    way and require another manual edit.
+  - Both live configs are still missing holograms.view-distance and
+    holograms.require-line-of-sight (added in v1.3.0). The code falls back to
+    defaults (8 and true), so behavior is correct but the config is incomplete.
+    These were not added in this session to keep scope narrow.
+
+Recommended Next Task:
+  Add a config migration step in PinpointPlugin.onEnable() that copies any keys
+  present in the bundled default config.yml but absent from the live file. This
+  is the permanent fix so this never happens again. Sketch:
+
+    After saveDefaultConfig(), read the bundled default via getResource("config.yml"),
+    iterate its keys, and for any key not present in getConfig(), set the value
+    from the default and call saveConfig(). This should only add missing keys,
+    never overwrite existing ones.
+
+  Also add holograms.view-distance and holograms.require-line-of-sight to both
+  live configs while the files are being touched for the code fix.
+
+================================================================================
+ENTRY — 2026-06-03
+================================================================================
+
+Version: 1.3.15
+
+User Request:
+Investigate why the icon picker is not showing the extra icons defined under
+icon-permissions in config.yml. Expected behavior: every player who opens the
+icon picker (i.e., the waypoint owner) should see ALL icons from all permission
+groups (media, vip, admin), with a red "Requires: X" lore on icons the player
+doesn't have permission to use, and an error message on click. Actual behavior:
+only the 10 base icons appear. The extra icons are completely absent.
+
+Work Performed:
+Read-only investigation. No files were modified. No build was performed.
+
+Investigated: GuiManager.java (openIconSelectGui, buildFullPalette,
+buildLockedMap), both live server config.yml files, src/main/resources/config.yml,
+changelog.txt, chatgpt.txt project context.
+
+Root cause identified: both live server config.yml files are missing the
+icon-permissions section and the icon-locked-* message keys. The files were
+written by saveDefaultConfig() from a pre-1.3.14 version of the JAR (at the
+time the plugin was first installed), and were never updated when the feature
+was added in 1.3.14 and modified in 1.3.15. Bukkit's saveDefaultConfig() only
+writes the file when it does not exist — it never merges new keys into an
+existing file. Copying Pinpoint-1.3.15.jar to the server does not cause the
+live config to be updated.
+
+Files Modified:
+None. Investigation only.
+
+Build Result:
+No build performed. The Java source code is correct and does not need to be
+changed to fix this bug.
+
+Explanation:
+The icon picker is opened by the waypoint owner via Manage GUI → Change Icon
+(slot 20, GuiManager.java:317-325). It calls openIconSelectGui(), which calls
+buildFullPalette() to construct the list of materials to display.
+
+buildFullPalette() (GuiManager.java:627-638) works as follows:
+  1. Starts with the 10-item ICON_PALETTE constant (lines 30-41).
+  2. Calls plugin.getConfig().getConfigurationSection("icon-permissions").
+  3. If the section is not null, iterates over each permission key and appends
+     its listed materials to the palette.
+  4. Returns the combined list.
+
+On both live servers, step 2 returns null because the live config.yml does not
+contain the "icon-permissions" key. Step 3 is skipped entirely. buildFullPalette()
+returns only 10 items.
+
+As a result:
+  - contentRows = ceil(10 / 7.0) = 2
+  - totalRows = min(2 + 2, 6) = 4
+  - invSize = 36 (4-row inventory)
+  - Only 10 icons are placed; the 14 extra icons never appear.
+
+The Java code in 1.3.15 is correct for the design. buildFullPalette() does NOT
+filter by permission — it adds all permission-group icons unconditionally.
+buildLockedMap() marks icons as locked for players who lack the permission, but
+this only affects lore and click behavior; it does not remove icons from the
+palette. The loop in openIconSelectGui() places every icon from the palette into
+the inventory regardless of lock state. This all matches the chatgpt.txt design
+spec. The bug is entirely in the missing config keys on the live servers.
+
+Secondary issue: the icon-locked-media, icon-locked-vip, icon-locked-admin, and
+icon-locked-generic message keys are also absent from both live configs. If a
+locked icon were clicked, plugin.msgCfg("icon-locked-media") would return an
+empty string and the player would see a blank chat message. This is unreachable
+right now (icons don't appear), but will surface the moment the config is fixed.
+
+Also missing from both live configs (lower priority, code uses fallback defaults):
+  holograms.view-distance: 8
+  holograms.require-line-of-sight: true
+
+One stale comment in src/main/resources/config.yml (line 38):
+  "# Players with the permission see these icons in addition to the default set."
+This describes the OLD v1.3.14 behavior (filtered visibility). v1.3.15 changed
+it to visible-but-locked. The comment should be updated but does not affect
+runtime behavior.
+
+There is exactly one path to the icon picker: openManageGui → isOwner check →
+Change Icon button → openIconSelectGui. No other caller exists.
+
+Important Notes:
+  - No code change is needed. The fix is entirely in the config files.
+  - Both servers have the same stale config — both need the same additions.
+  - Do NOT delete config.yml and let it regenerate. That would lose any custom
+    settings the user has made (fees, hologram settings, message customizations).
+    Manually add only the missing keys instead.
+  - After editing config.yml while the server is running, use /wp reload to
+    apply the changes without restarting.
+  - saveDefaultConfig() will never fix this automatically on future updates.
+    Consider adding a config migration step in onEnable() for the next version
+    (see Recommended Next Task).
+
+Testing Checklist:
+After adding the missing config keys to both servers and running /wp reload:
+
+  1. Open the icon picker as a player with NO special permissions:
+     - Place a Pinpoint block, name it, open Manage GUI, click Change Icon.
+     - Expected: inventory is 6 rows (54 slots) instead of 4 rows (36 slots).
+     - Expected: 24 icons visible (10 base + 5 media + 5 vip + 4 admin).
+     - Expected: the 14 extra icons show red lore "Requires: Media/VIP/Admin".
+     - Expected: clicking a locked icon shows the error message in chat
+       (e.g. "You need the Media role to use this icon.").
+     - Expected: GUI stays open after clicking a locked icon.
+
+  2. Open the icon picker as a player with pinpoint.icons.vip permission:
+     - Expected: media and admin icons show as locked; vip icons are selectable.
+     - Clicking a vip icon changes the waypoint icon and closes the picker.
+
+  3. Open the icon picker as a player with ALL three permissions:
+     - Expected: all 24 icons are unlocked and selectable.
+
+  4. Verify error messages are not blank:
+     - Click a media-locked icon → should show "You need the Media role..."
+     - Click a vip-locked icon → should show "You need the VIP role..."
+     - Click an admin-locked icon → should show "You need the Admin role..."
+
+  5. Select a locked icon's group for a player who gets the permission later:
+     - Grant pinpoint.icons.media mid-session.
+     - Open the picker again.
+     - Expected: media icons are now unlocked (buildLockedMap is called fresh
+       each time the picker opens).
+
+Known Issues:
+  - Config migration not automated: any future config additions will require
+    the same manual process unless a migration step is added to onEnable().
+  - Stale comment in src/main/resources/config.yml describing old v1.3.14
+    filtering behavior instead of v1.3.15 visible-but-locked behavior.
+  - Both live servers are also missing holograms.view-distance and
+    holograms.require-line-of-sight keys. These silently fall back to defaults
+    in the code (8 and true respectively), so there is no visible bug, but the
+    config is incomplete.
+
+Recommended Next Task:
+  IMMEDIATE: Apply the config fix to both live servers (no build required).
+  Add to both config.yml files under the holograms section:
+    view-distance: 8
+    require-line-of-sight: true
+  Add to both config.yml files as a new top-level section:
+    icon-permissions:
+      pinpoint.icons.media:
+        - NOTE_BLOCK
+        - JUKEBOX
+        - SPYGLASS
+        - PAINTING
+        - GLOW_ITEM_FRAME
+      pinpoint.icons.vip:
+        - GOLD_BLOCK
+        - DIAMOND_BLOCK
+        - NETHER_STAR
+        - BEACON
+        - TOTEM_OF_UNDYING
+      pinpoint.icons.admin:
+        - COMMAND_BLOCK
+        - SPAWNER
+        - STRUCTURE_BLOCK
+        - BEDROCK
+  Add to both config.yml files under the messages section:
+    icon-locked-media: "&cYou need the Media role to use this icon."
+    icon-locked-vip: "&cYou need the VIP role to use this icon."
+    icon-locked-admin: "&cYou need the Admin role to use this icon."
+    icon-locked-generic: "&cYou don't have permission to use this icon."
+  Then run /wp reload on each server.
+
+  FOLLOW-UP (next version): Add a config migration step in PinpointPlugin.onEnable()
+  that copies keys present in the bundled default config but absent from the live
+  file, so future feature additions do not silently fail when the server has a
+  pre-existing config.yml.
+
+  Fix stale comment in src/main/resources/config.yml line 38.
+
+================================================================================
+PROJECT CONTEXT
+================================================================================
+
+Project: Pinpoint (Paper 1.21.x plugin, Java 21)
+Version: 1.3.15
+Author: Dboxual
+Date: 2026-06-03
+
+--- WHAT THE PLUGIN DOES ---
+
+Pinpoint is a craftable waypoint and teleportation system.
+
+Players craft a Pinpoint Block (8x Quartz + Ender Eye), place it anywhere,
+and name it in chat. The block marks that location as a Pinpoint. Players can
+teleport to any Pinpoint they have access to.
+
+Navigation is done via:
+1. Pinpoint Compass (1x Ender Eye + 1x Compass) — right-click to open the
+   hub GUI listing all accessible Pinpoints.
+2. Right-clicking any placed Pinpoint block — opens that block's GUI directly.
+
+Teleports use a countdown (default 10s pearl, 5s block). Moving or taking
+damage during the countdown cancels the teleport.
+
+--- SYSTEMS ---
+
+1. Waypoint/Pinpoint system
+   - Pinpoint Block: place to mark a location. Named in chat after placing.
+   - Owner can: toggle public/private, set fee, invite players, rename,
+     delete, change icon, set teleport facing direction.
+   - Invited players and public Pinpoints are accessible from the hub GUI.
+   - Max waypoints per player configurable (default 10).
+   - YAML persistence: plugins/Pinpoint/waypoints.yml (UUID-keyed).
+
+2. Economy / fee system (Vault soft-dependency)
+   - Owners can set a fee on their Pinpoint.
+   - Balance is checked before the countdown fires.
+   - Fee is charged only after player.teleport() succeeds.
+   - Fee is paid to the Pinpoint owner via Vault OfflinePlayer API (works
+     when the owner is offline).
+   - If owner credit fails, the player is refunded and the teleport stands.
+
+3. Teleport flow (TeleportHelper.java)
+   - startTeleport / teleportFromBlock: countdown task + cancel listener.
+   - doTeleport: world check → location check → balance check → findSafe →
+     player.teleport() → charge fee → owner deposit → success messages.
+   - Cooldown set after successful teleport.
+   - 5-second post-teleport invincibility window.
+   - TeleportCancelListener: cancels on player move or damage.
+
+4. Party system
+   - Shift+right-click a player with the Pinpoint Compass to send a link
+     request. Accepting merges parties (A-B + B-C = A-B-C).
+   - Travel notifications: when any party member teleports, all online
+     members get a Follow/Stay GUI.
+   - /party command (alias /pp): leave, disband, remove, accept, deny,
+     follow, stay.
+   - Persistence: plugins/Pinpoint/parties.yml.
+
+4a. Teleport facing direction (stored per Pinpoint)
+   - Owner sets direction via "Set Facing Direction" button in Manage GUI.
+   - Captures both yaw (compass direction) and pitch (vertical angle).
+   - Stored as teleport-yaw and teleport-pitch in waypoints.yml.
+   - Applied to all teleport paths in TeleportHelper.doTeleport().
+   - Pitch description: < -30 = looking up, > 30 = looking down, else level.
+   - Float.NaN teleportYaw = direction not set (uses safe-spot default).
+
+4b. Permission-based extra icons (visible-but-locked model) — v1.3.15
+   - Base palette (10 items) always visible and usable by all players.
+   - Extra icons defined in config.yml under icon-permissions (perm → list).
+   - Three built-in groups: pinpoint.icons.media, .vip, .admin.
+   - ALL icons from all groups are always shown in the picker regardless of
+     the player's permissions.
+   - Icons the player cannot use show red lore: "Requires: Media/VIP/Admin".
+   - Clicking a locked icon sends an error message; GUI stays open.
+     Error messages are configurable in config.yml:
+       icon-locked-media, icon-locked-vip, icon-locked-admin, icon-locked-generic.
+   - Icon picker inventory is dynamically sized (7 icons/row, 2 border rows).
+   - Existing Pinpoint icons are never changed unless the owner clicks.
+   - KNOWN ISSUE: Live server config.yml files are missing icon-permissions
+     and icon-locked-* keys. See latest entry above for fix.
+
+5. Holograms
+   - Invisible marker armor stands above each Pinpoint block showing name,
+     owner, visibility, fee.
+   - Hidden per-player by distance and line-of-sight.
+   - Config: holograms.enabled, holograms.view-distance (default 8),
+     holograms.require-line-of-sight (default true), holograms.height
+     (default 2.8), holograms.show-owner, holograms.show-fee.
+   - KNOWN ISSUE: Live server config.yml files are missing view-distance and
+     require-line-of-sight keys. Behavior is correct (uses defaults) but
+     config is incomplete.
+
+6. Hub GUI
+   - Fixed 6-row, paginated (28 per page).
+   - Sorted: owned first (green), invited/private second, public third.
+     A-Z within each group.
+   - Owned Pinpoints highlighted green with "Owner: You" lore.
+   - Each Pinpoint uses its custom icon material.
+
+--- FILE STRUCTURE ---
+
+src/main/java/com/pinpoint/
+  PinpointPlugin.java                    — main plugin class
+  commands/
+    WaypointCommand.java                 — /waypoint (alias /wp)
+    PartyCommand.java                    — /party (alias /pp)
+  data/
+    Waypoint.java                        — waypoint data model
+    WaypointManager.java                 — in-memory state, cooldowns,
+                                           pending teleports, recall cooldown
+    WaypointStorage.java                 — YAML load/save (waypoints.yml)
+    Party.java                           — party data model
+    PartyManager.java                    — in-memory party state
+    PartyStorage.java                    — YAML load/save (parties.yml)
+    LinkRequest.java                     — pending party link request
+    TravelOffer.java                     — pending travel follow offer
+  economy/
+    EconomyManager.java                  — Vault hook, charge, deposit,
+                                           depositToOwner, hasBalance
+  gui/
+    GuiManager.java                      — all waypoint GUIs
+    PartyGuiManager.java                 — party GUIs + travel notifications
+  hologram/
+    HologramManager.java                 — armor stand hologram lifecycle
+  item/
+    ItemManager.java                     — createWaypointBlock,
+                                           createWaypointCompass, lore helpers
+  listeners/
+    BlockBreakListener.java              — protect and delete waypoint blocks
+    BlockPlaceListener.java              — detect waypoint block placement,
+                                           start naming flow
+    ChatInputListener.java               — handle naming/fee chat input
+    PartyListener.java                   — party invite, shift+right-click
+    TeleportCancelListener.java          — cancel teleport on move/damage
+    WaypointInteractListener.java        — right-click block and compass
+  util/
+    TeleportHelper.java                  — teleport, countdown, doTeleport,
+                                           findSafe
+
+src/main/resources/
+  plugin.yml    — metadata, commands, permissions
+  config.yml    — all configurable settings and messages
+
+--- LIVE SERVER PATHS ---
+
+TEST server:  /DATA/AppData/crafty/servers/2241bcf6-5a50-4b43-ac05-43ce90bcc571/
+MAIN server:  /DATA/AppData/crafty/servers/4b5d118d-ab59-41c5-b377-4c6ff75f7558/
+Plugin JARs go in: [server]/plugins/
+Plugin data (config, waypoints.yml, parties.yml) in: [server]/plugins/Pinpoint/
+Reload command (no restart): /wp reload
+
+--- KEY CONFIG KEYS ---
+
+settings:
+  max-waypoints-per-player: 10
+  teleport-cooldown-seconds: 3
+  waypoint-pearl-teleport-delay-seconds: 10
+  waypoint-block-teleport-delay-seconds: 5
+  safe-teleport-radius: 5
+  link-request-timeout: 60
+  party-travel-offer-timeout: 30
+
+holograms:
+  enabled: true
+  height: 2.8
+  view-distance: 8              ← MISSING from live configs
+  require-line-of-sight: true   ← MISSING from live configs
+  show-owner: true
+  show-fee: true
+
+icon-permissions:               ← ENTIRE SECTION MISSING from live configs
+  pinpoint.icons.media:  [NOTE_BLOCK, JUKEBOX, SPYGLASS, PAINTING, GLOW_ITEM_FRAME]
+  pinpoint.icons.vip:    [GOLD_BLOCK, DIAMOND_BLOCK, NETHER_STAR, BEACON, TOTEM_OF_UNDYING]
+  pinpoint.icons.admin:  [COMMAND_BLOCK, SPAWNER, STRUCTURE_BLOCK, BEDROCK]
+
+messages (icon-locked keys MISSING from live configs):
+  icon-locked-media:    "&cYou need the Media role to use this icon."
+  icon-locked-vip:      "&cYou need the VIP role to use this icon."
+  icon-locked-admin:    "&cYou need the Admin role to use this icon."
+  icon-locked-generic:  "&cYou don't have permission to use this icon."
+
+--- DEPENDENCIES ---
+
+Hard: Paper 1.21.x, Java 21
+Soft: Vault (economy/fee system), Geyser-Spigot (Bedrock compatibility)
+
+--- DO NOT ADD ---
+
+- ProtocolLib
+- PlaceholderAPI
+- Any hard dependency beyond Paper
+- Per-world waypoint restrictions (not planned)
+- Waypoint categories or folders

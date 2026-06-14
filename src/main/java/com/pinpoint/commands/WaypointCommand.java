@@ -4,6 +4,8 @@ import com.pinpoint.PinpointPlugin;
 import com.pinpoint.data.Waypoint;
 import com.pinpoint.data.WaypointManager;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -12,8 +14,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 public class WaypointCommand implements CommandExecutor, TabCompleter {
@@ -40,14 +42,63 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         }
 
         switch (args[0].toLowerCase()) {
-            case "list"   -> handleList(sender);
-            case "accept" -> { if (sender instanceof Player p) processAccept(p); }
-            case "deny"   -> { if (sender instanceof Player p) processDeny(p); }
-            case "reload" -> handleReload(sender);
-            case "give"   -> handleGive(sender, args);
+            case "list"      -> handleList(sender);
+            case "reload"    -> handleReload(sender);
+            case "give"      -> handleGive(sender, args);
+            case "landmark"  -> handleLandmark(sender, args);
+            case "tpaccept"  -> handleTpAccept(sender);
+            case "tpdeny"    -> handleTpDeny(sender);
             default -> sendUsage(sender);
         }
         return true;
+    }
+
+    // /waypoint tpaccept — accept an incoming player teleport request (fallback; primary flow is GUI)
+    private void handleTpAccept(CommandSender sender) {
+        if (!(sender instanceof Player target)) {
+            sender.sendMessage("Only players can use this command.");
+            return;
+        }
+        UUID requesterId = plugin.getWaypointManager().getIncomingRequest(target.getUniqueId());
+        if (requesterId == null) {
+            target.sendMessage(plugin.msg("prefix") + "§cYou have no pending teleport requests.");
+            return;
+        }
+        Player requester = Bukkit.getPlayer(requesterId);
+        if (requester == null || !requester.isOnline()) {
+            int taskId = plugin.getWaypointManager().getPendingPlayerRequestTaskId(requesterId);
+            if (taskId != -1) plugin.getServer().getScheduler().cancelTask(taskId);
+            plugin.getWaypointManager().clearPendingPlayerRequest(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestTaskId(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestExpiry(requesterId);
+            target.sendMessage(plugin.msg("prefix") + "§cThat player is no longer online.");
+            return;
+        }
+        plugin.getTeleportHelper().acceptPlayerTeleportRequest(target, requester);
+    }
+
+    // /waypoint tpdeny — deny an incoming player teleport request (fallback; primary flow is GUI)
+    private void handleTpDeny(CommandSender sender) {
+        if (!(sender instanceof Player target)) {
+            sender.sendMessage("Only players can use this command.");
+            return;
+        }
+        UUID requesterId = plugin.getWaypointManager().getIncomingRequest(target.getUniqueId());
+        if (requesterId == null) {
+            target.sendMessage(plugin.msg("prefix") + "§cYou have no pending teleport requests.");
+            return;
+        }
+        Player requester = Bukkit.getPlayer(requesterId);
+        if (requester == null || !requester.isOnline()) {
+            int taskId = plugin.getWaypointManager().getPendingPlayerRequestTaskId(requesterId);
+            if (taskId != -1) plugin.getServer().getScheduler().cancelTask(taskId);
+            plugin.getWaypointManager().clearPendingPlayerRequest(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestTaskId(requesterId);
+            plugin.getWaypointManager().clearPendingPlayerRequestExpiry(requesterId);
+            target.sendMessage(plugin.msg("prefix") + "§cThat player is no longer online.");
+            return;
+        }
+        plugin.getTeleportHelper().denyPlayerTeleportRequest(target, requester);
     }
 
     // /waypoint list
@@ -153,63 +204,140 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    public void processAccept(Player player) {
-        UUID uuid = player.getUniqueId();
-        // Close any open GUI so countdown can begin unobstructed
-        plugin.getGuiManager().closeGui(player);
-        if (!plugin.getWaypointManager().hasPendingInvite(uuid)) {
-            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-pending-invite"));
+    // /waypoint landmark <create|delete|list|reload> [name]
+    private void handleLandmark(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("pinpoint.admin.landmark")) {
+            sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
             return;
         }
-
-        WaypointManager.TeleportInvite invite = plugin.getWaypointManager().getInvite(uuid);
-        invite.accepted = true;
-
-        Optional<Waypoint> wpOpt = plugin.getWaypointManager().getWaypoint(invite.waypointId);
-        if (wpOpt.isEmpty()) {
-            player.sendMessage(plugin.msg("prefix") + "§cThat Pinpoint no longer exists.");
-            plugin.getWaypointManager().removeInvite(uuid);
+        if (args.length < 2) {
+            sendLandmarkUsage(sender);
             return;
         }
-
-        Waypoint wp = wpOpt.get();
-        Player inviter = Bukkit.getPlayer(invite.inviterUuid);
-        String inviterName = inviter != null ? inviter.getName() : "your group";
-
-        // Both players start their 5-second group countdown in the same tick → synchronized arrival
-        plugin.getTeleportHelper().teleportGroupMember(player, wp, inviterName, false);
-
-        if (inviter != null && inviter.isOnline()) {
-            inviter.sendMessage(plugin.msg("prefix") +
-                    String.format(plugin.msgCfg("invite-accepted"), player.getName()));
-            plugin.getTeleportHelper().teleportGroupMember(inviter, wp, player.getName(), false);
+        switch (args[1].toLowerCase()) {
+            case "create" -> handleLandmarkCreate(sender, args);
+            case "delete" -> handleLandmarkDelete(sender, args);
+            case "list"   -> handleLandmarkList(sender);
+            case "reload" -> handleLandmarkReload(sender);
+            default -> sendLandmarkUsage(sender);
         }
-
-        plugin.getWaypointManager().removeInvite(uuid);
     }
 
-    public void processDeny(Player player) {
-        UUID uuid = player.getUniqueId();
-        if (!plugin.getWaypointManager().hasPendingInvite(uuid)) {
-            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-pending-invite"));
+    private void handleLandmarkCreate(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("pinpoint.admin.landmark.create")) {
+            sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(plugin.msg("prefix") + "§cOnly players can create landmarks.");
+            return;
+        }
+        if (!plugin.getConfig().getBoolean("landmarks.enabled", true)) {
+            sender.sendMessage(plugin.msg("prefix") + "§cLandmarks are disabled in config.");
+            return;
+        }
+        if (args.length < 3) {
+            sender.sendMessage(plugin.msg("prefix") + "§cUsage: /wp landmark create <name>");
+            return;
+        }
+        String name = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
+        if (name.length() > 32) {
+            sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("name-too-long"));
+            return;
+        }
+        if (plugin.getWaypointManager().getLandmarks().stream()
+                .anyMatch(lm -> lm.getName().equalsIgnoreCase(name))) {
+            sender.sendMessage(plugin.msg("prefix") + "§cA landmark named '§e" + name + "§c' already exists.");
             return;
         }
 
-        WaypointManager.TeleportInvite invite = plugin.getWaypointManager().getInvite(uuid);
-        plugin.getWaypointManager().removeInvite(uuid);
-        player.sendMessage(plugin.msg("prefix") + "§cYou denied the teleport invite.");
+        plugin.getWaypointManager().setPendingLandmarkCreation(player.getUniqueId(), name);
 
-        Player inviter = Bukkit.getPlayer(invite.inviterUuid);
-        if (inviter != null && inviter.isOnline()) {
-            inviter.sendMessage(plugin.msg("prefix") +
-                    String.format(plugin.msgCfg("invite-denied"), player.getName()));
+        // Ensure the admin has a Landmark Block to place
+        boolean hasLandmarkBlock = false;
+        for (ItemStack i : player.getInventory().getContents()) {
+            if (plugin.getItemManager().isLandmarkBlock(i)) { hasLandmarkBlock = true; break; }
         }
+        if (!hasLandmarkBlock) {
+            player.getInventory().addItem(plugin.getItemManager().createLandmarkBlock());
+            player.sendMessage(plugin.msg("prefix") + "§7(A Landmark Block has been added to your inventory.)");
+        }
+        player.sendMessage(plugin.msg("prefix")
+                + "§bPlace the Landmark Block to set the location for landmark '§a" + name + "§b'.");
+    }
+
+    private void handleLandmarkDelete(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("pinpoint.admin.landmark.delete")) {
+            sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
+            return;
+        }
+        if (args.length < 3) {
+            sender.sendMessage(plugin.msg("prefix") + "§cUsage: /wp landmark delete <name>");
+            return;
+        }
+        String name = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
+        Waypoint landmark = plugin.getWaypointManager().getLandmarks().stream()
+                .filter(lm -> lm.getName().equalsIgnoreCase(name))
+                .findFirst().orElse(null);
+        if (landmark == null) {
+            sender.sendMessage(plugin.msg("prefix") + "§cLandmark '§e" + name + "§c' not found.");
+            return;
+        }
+        plugin.getHologramManager().removeHologram(landmark.getId());
+        Location blockLoc = landmark.getLocation();
+        plugin.getWaypointManager().deleteWaypoint(landmark.getId());
+        if (blockLoc != null) {
+            String matName = plugin.getConfig().getString("landmarks.block.material", "LODESTONE");
+            Material lmMat = Material.matchMaterial(matName);
+            if (lmMat == null) lmMat = Material.LODESTONE;
+            if (blockLoc.getBlock().getType() == lmMat) {
+                blockLoc.getBlock().setType(Material.AIR);
+            }
+        }
+        sender.sendMessage(plugin.msg("prefix") + "§aLandmark '§b" + landmark.getName() + "§a' deleted.");
+    }
+
+    private void handleLandmarkList(CommandSender sender) {
+        if (!sender.hasPermission("pinpoint.admin.landmark.list")) {
+            sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
+            return;
+        }
+        List<Waypoint> landmarks = plugin.getWaypointManager().getLandmarks();
+        if (landmarks.isEmpty()) {
+            sender.sendMessage(plugin.msg("prefix") + "§7No landmarks have been created.");
+            return;
+        }
+        sender.sendMessage(plugin.msg("prefix") + "§eLandmarks §7(" + landmarks.size() + ")§e:");
+        for (Waypoint lm : landmarks) {
+            String loc = lm.getWorldName() + " " + (int)lm.getX() + " " + (int)lm.getY() + " " + (int)lm.getZ();
+            sender.sendMessage("  §7» §b" + lm.getName() + " §8(" + loc + ")");
+        }
+    }
+
+    private void handleLandmarkReload(CommandSender sender) {
+        if (!sender.hasPermission("pinpoint.admin.landmark.reload")) {
+            sender.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
+            return;
+        }
+        plugin.reloadConfig();
+        for (Waypoint lm : plugin.getWaypointManager().getLandmarks()) {
+            plugin.getHologramManager().updateHologram(lm);
+        }
+        sender.sendMessage(plugin.msg("prefix") + "§aLandmark config reloaded.");
+    }
+
+    private void sendLandmarkUsage(CommandSender sender) {
+        sender.sendMessage(plugin.msg("prefix") + "§eLandmark commands:");
+        sender.sendMessage("  §b/wp landmark create §e<name>  §7- Create a landmark");
+        sender.sendMessage("  §b/wp landmark delete §e<name>  §7- Delete a landmark");
+        sender.sendMessage("  §b/wp landmark list             §7- List all landmarks");
+        sender.sendMessage("  §b/wp landmark reload           §7- Reload landmark config");
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            List<String> subs = new ArrayList<>(List.of("menu", "list", "accept", "deny", "reload", "give"));
+            List<String> subs = new ArrayList<>(List.of("menu", "list", "reload", "give", "landmark"));
             return filter(subs, args[0]);
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
@@ -221,6 +349,16 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
             return filter(List.of("waypoint", "compass"), args[2]);
         }
+        if (args.length == 2 && args[0].equalsIgnoreCase("landmark")) {
+            return filter(List.of("create", "delete", "list", "reload"), args[1]);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("landmark")
+                && args[1].equalsIgnoreCase("delete")) {
+            return plugin.getWaypointManager().getLandmarks().stream()
+                    .map(Waypoint::getName)
+                    .filter(n -> n.toLowerCase().startsWith(args[2].toLowerCase()))
+                    .toList();
+        }
         return List.of();
     }
 
@@ -230,11 +368,12 @@ public class WaypointCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.msg("prefix") + "§ePinpoint commands:");
         sender.sendMessage("  §b/wp§e or §b/wp menu §7- Open Pinpoint hub");
         sender.sendMessage("  §b/wp list            §7- List accessible Pinpoints");
-        sender.sendMessage("  §b/wp accept§e/§bdeny  §7- Respond to a teleport invite");
         if (sender.hasPermission("waypoint.reload"))
             sender.sendMessage("  §b/wp reload          §7- Reload config and data");
         if (sender.hasPermission("waypoint.give"))
             sender.sendMessage("  §b/wp give §e<player> waypoint§7|§ecompass §7- Give items");
+        if (sender.hasPermission("pinpoint.admin.landmark"))
+            sender.sendMessage("  §b/wp landmark        §7- Landmark admin commands");
     }
 
     private int parseAmount(String[] args, int index, int defaultVal) {

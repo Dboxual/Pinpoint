@@ -1,12 +1,52 @@
+compass:
+  # Automatically give a Pinpoint Compass to any player who has never received one.
+  # Tracked permanently per UUID in plugins/Pinpoint/compass-received.yml.
+  # Covers new players, existing players, and anyone who joins after this update.
+  enabled: true
+  message: "&bYou received a Pinpoint Compass!"
+  inventory-full: "&eYour inventory was full. Your Pinpoint Compass was dropped nearby."
+
+landmarks:
+  # Enable the Landmarks system (admin-created global waypoints).
+  enabled: true
+  hologram:
+    # MiniMessage format. Use %name% for the landmark name.
+    line-1: "<gradient:#00e5ff:#8a2be2><bold>%name%</bold></gradient>"
+    color: "AQUA"
+  gui:
+    title: "&bLandmarks"
+    icon: "BEACON"
+    category-name: "&bLandmarks"
+  teleport:
+    enabled: true
+    # Cost to teleport to a landmark (0 = free). Vault required for non-zero cost.
+    cost: 0
+    # Landmark teleport delay is controlled by teleport.compass-delay-seconds and
+    # teleport.block-delay-seconds at the top of this file.
+  block:
+    # Material for the Landmark Block item given during /wp landmark create.
+    material: "LODESTONE"
+    # MiniMessage format for the item display name.
+    name: "<gradient:#00e5ff:#8a2be2><bold>Landmark Block</bold></gradient>"
+    lore:
+      - "&7Admin-only travel landmark."
+      - "&7Place this during landmark setup."
+    no-permission-message: "&cYou do not have permission to place Landmark Blocks."
+    setup-required-message: "&cUse /wp landmark create <name> before placing a Landmark Block."
+
+teleport:
+  # Delay (seconds) when teleporting via the Pinpoint Compass or any GUI tab.
+  # Applies to all waypoint types including Landmarks. Always 5 seconds.
+  compass-delay-seconds: 5
+  # Delay (seconds) when teleporting by physically right-clicking a placed Pinpoint or Landmark block.
+  # Applies to all waypoint types including Landmarks. Always 5 seconds.
+  block-delay-seconds: 5
+
 settings:
   # Default teleport fee (0 = free). Applied when a waypoint is first created.
   default-fee: 0
   # Radius (in blocks) to search for a safe landing spot near the waypoint.
   safe-teleport-radius: 5
-  # Block right-click teleport delay (seconds). 0 = near-instant. Player still needs to pass fee/safe-spot checks.
-  waypoint-block-teleport-delay-seconds: 5
-  # Pearl right-click teleport delay (seconds). Player must stand still for this long before teleporting.
-  waypoint-pearl-teleport-delay-seconds: 10
   # Seconds a player must wait between teleports after a successful one (all players).
   teleport-cooldown-seconds: 3
   # Maximum number of waypoints a single player may own (0 = unlimited).
@@ -17,6 +57,15 @@ settings:
   link-request-timeout: 60
   # Seconds party members have to click [Follow] after a Pinpoint travel notification.
   party-travel-offer-timeout: 30
+  # (player-to-player teleport settings are in the player-teleport section below)
+
+player-teleport:
+  # Seconds before an unanswered player teleport request expires.
+  request-expire-seconds: 10
+  # Seconds both players must stand still after the request is accepted before teleporting.
+  stand-still-seconds: 10
+  # Bops charged to each player when a player-to-player teleport completes (0 = free).
+  cost-bops: 100
 
 holograms:
   # Whether to display floating info above each placed waypoint block.
@@ -33,6 +82,31 @@ holograms:
   # Prevents holograms from revealing bases through walls.
   require-line-of-sight: true
 
+# Permission-gated extra icons for the icon picker GUI.
+# Format: permission.node followed by a list of Material names (case-insensitive).
+# Players who have the permission see those icons in the picker.
+# Players who do not have the permission do not see them at all.
+# Add or remove groups freely — the plugin does not care about role names.
+# To disable a group, remove it or comment it out.
+icon-permissions:
+  pinpoint.icons.vip:
+    - GOLD_BLOCK
+    - DIAMOND_BLOCK
+    - NETHER_STAR
+    - BEACON
+    - TOTEM_OF_UNDYING
+  pinpoint.icons.media:
+    - NOTE_BLOCK
+    - JUKEBOX
+    - SPYGLASS
+    - PAINTING
+    - GLOW_ITEM_FRAME
+  pinpoint.icons.admin:
+    - COMMAND_BLOCK
+    - SPAWNER
+    - STRUCTURE_BLOCK
+    - BEDROCK
+
 messages:
   prefix: "&8[&bPinpoints&8] &r"
   no-permission: "&cYou don't have permission to do that."
@@ -40,12 +114,6 @@ messages:
   waypoint-teleported: "&aTeleported to &b%s&a."
   fee-charged: "&aCharged &e%s&a for teleport."
   fee-insufficient: "&cYou need &e%s&c to teleport there."
-  invite-sent: "&aInvite sent to &b%s&a."
-  invite-received: "&b%s &ahas invited you to &b%s&a. &eShift+Pearl&a to accept, or &e/wp accept&a | &e/wp deny&a."
-  invite-accepted: "&a%s accepted your invite."
-  invite-denied: "&c%s denied your invite."
-  invite-expired: "&cYour invite has expired."
-  no-pending-invite: "&cYou have no pending invite."
   not-owner: "&cOnly the owner can do that."
   waypoint-not-found: "&cPinpoint not found."
   name-prompt: "&eType the Pinpoint name in chat (or &ccancel&e):"
@@ -60,3 +128,20 @@ messages:
   teleport-countdown: "&ePearl teleporting in &b%ds&e... don't move."
   teleport-cancelled-moved: "&cTeleport cancelled — you moved."
   teleport-cancelled-damaged: "&cTeleport cancelled — you took damage."
+  player-tp-request-received: "&b%s &awants to teleport to you! Open your &bPinpoint compass &ato accept or deny."
+  player-tp-request-expires-in: "&7(Expires in &b%ds&7.)"
+  player-tp-request-accepted-requester: "&b%s &aaccepted! Stand still for &b%ds&a."
+  player-tp-request-accepted-target: "&aAccepted. Stand still for &b%ds&a."
+  player-tp-request-denied-requester: "&b%s &cdenied your teleport request."
+  player-tp-request-denied-target: "&7Request denied."
+  player-tp-request-expired-requester: "&7Your request to &b%s &7expired."
+  player-tp-request-expired-target: "&7The teleport request from &b%s &7expired."
+  player-tp-bops-notice: "&7(Cost: &e%d Bops &7each on success.)"
+  player-tp-no-bops-self: "&cYou don't have enough Bops (&e%d needed&c). Teleport cancelled."
+  player-tp-no-bops-other: "&cTeleport cancelled — &b%s &cdoesn't have enough Bops (&e%d needed&c)."
+  player-tp-cancelled-moved: "&cTeleport cancelled — you moved."
+  player-tp-cancelled-other-moved: "&cTeleport cancelled — &b%s &cmoved."
+  player-tp-cancelled-disconnect: "&cTeleport cancelled — &b%s &cdisconnected."
+  player-tp-success-requester: "&aTeleported to &b%s&a!"
+  player-tp-success-target: "&b%s &ahas teleported to you!"
+  player-tp-bops-charged: "&7(&e%d Bops &7deducted from each of you.)"

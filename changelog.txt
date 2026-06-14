@@ -1,0 +1,805 @@
+Pinpoint Plugin Changelog
+=========================
+
+v1.3.34 — 2026-06-13
+Waystone/Landmark/Pinpoint teleport always 5 seconds
+-----------------------------------------------------
+- Unified both teleport delay paths to 5 seconds.
+  Previously: compass/GUI used compass-delay-seconds (default 10s), block used block-delay-seconds (5s).
+  Now both compass-delay-seconds and block-delay-seconds default to 5.
+- Charge-after-success behavior is unchanged: Bops are only deducted after player.teleport() succeeds.
+  If the player moves, takes damage, or cancels during the countdown, no Bops are charged.
+- Player-to-player teleport stand-still-seconds is unchanged (separate config key, separate flow).
+- Config comment updated to say "Always 5 seconds" for both delay keys.
+
+v1.3.33 — 2026-06-12
+Context-aware teleport delay: compass/GUI = 10s, physical block = 5s
+---------------------------------------------------------------------
+- Teleport delay now depends on HOW the player initiated travel, not just the waypoint type.
+- Right-clicking a placed Pinpoint block or Landmark block → 5-second countdown (block-delay-seconds).
+- Using the Pinpoint Compass or any GUI tab → 10-second countdown (compass-delay-seconds).
+- Both delays apply equally to normal Pinpoints AND Landmarks.
+- New top-level config section replaces the old per-path keys:
+    teleport:
+      compass-delay-seconds: 10
+      block-delay-seconds: 5
+- Removed: settings.waypoint-pearl-teleport-delay-seconds
+- Removed: settings.waypoint-block-teleport-delay-seconds
+- Removed: landmarks.teleport.delay-seconds (replaced by the unified teleport section)
+- GuiManager now stores a per-player fromBlock flag (set on openHubGui, cleared on full
+  GUI close) that is propagated through all sub-GUI navigation so teleport handlers always
+  use the correct delay regardless of how deep in the GUI the player is when they click
+  "Teleport Here".
+- openHubGui previously accepted a fromBlock parameter but silently dropped it. This is
+  now stored and used.
+- teleportToLandmark() removed from TeleportHelper; landmark teleports route through the
+  same teleport() and teleportFromBlock() methods as normal waypoints.
+- Player-to-player teleport delay unchanged (stand-still-seconds, default 10s).
+- Movement cancel, Bops charging, and cooldown behavior are all unchanged.
+
+v1.3.32 — 2026-06-11
+Player-to-player teleport: silent sender, Bops currency, pre-countdown balance check
+--------------------------------------------------------------------------------------
+- Sending a teleport request is now fully silent for the sender. No chat messages are
+  sent to the requester when they click a player in the Players tab.
+- Currency renamed from "Bits" / Vault-formatted money to "Bops" across all
+  player-to-player teleport GUI lore, chat messages, and config.
+- Config key player-teleport.cost-bits renamed to player-teleport.cost-bops.
+- Both players must have at least cost-bops Bops BEFORE the countdown starts.
+  If either cannot afford it, the accept is rejected and both players are told clearly.
+  Previously the check happened post-teleport.
+- Charge happens only after the teleport successfully completes (unchanged).
+- Post-teleport charge failure (edge case: player spent Bops during countdown) now
+  logs a warning to console and safely handles refunds — neither player is double-charged.
+- Fixed: renderPlayersContent was reading deleted config key settings.player-teleport-cost.
+  Now correctly reads player-teleport.cost-bops.
+- Normal waypoint fees (Vault) are unchanged.
+
+v1.3.31 — 2026-06-11
+Player-to-player teleport: GUI accept/deny flow
+------------------------------------------------
+- Accept/deny flow moved from clickable chat to Pinpoint GUI.
+  Players open the Pinpoint compass; a pending request banner appears in row 0 of
+  the category GUI with Accept (lime) and Deny (red) buttons.
+- Request expiry reduced from 30 s to 10 s (player-teleport.request-expire-seconds).
+- Added player-teleport config section (request-expire-seconds, stand-still-seconds,
+  cost-bops). Old settings.player-teleport-* keys removed.
+- Added player-teleport expiry timestamp tracking in WaypointManager for GUI
+  "Expires in Xs" display.
+- /waypoint tpaccept and /waypoint tpdeny retained as undocumented fallbacks.
+
+v1.3.29 — 2026-06-10
+Landmark Block opens full travel network (ESO Wayshrine design)
+---------------------------------------------------------------
+- Right-clicking a Landmark Block now opens the full Pinpoint travel network
+  at the player's last-visited category (defaulting to My Pinpoints / OWNED).
+- Landmarks are now true travel terminals, not destinations. Players standing
+  at a Landmark (Spawn, Market, Arena, etc.) no longer see a Landmark-specific
+  "Teleport Here" screen on first interaction — they go straight into the
+  full network.
+- Players can immediately access: My Pinpoints, Invited, Public, Players,
+  Landmarks — via the bottom navigation bar.
+- Admin management of Landmarks is unchanged: admins can access the Landmark
+  Manage GUI by navigating to the Landmarks tab and clicking any entry.
+- No changes to Landmark creation, deletion, holograms, PDC tags, block items,
+  compass distribution, or waypoint storage.
+
+v1.3.28 — 2026-06-10
+Landmark Block opens full Pinpoint GUI
+---------------------------------------
+- Right-clicking a placed Landmark Block now opens the full Pinpoint hub GUI
+  starting at the Landmarks category, rather than a small single-landmark popup.
+- Players can freely switch between all categories (My Pinpoints, Invited, Public,
+  Players, Landmarks) and teleport to their own waypoints from within the hub.
+- Players are no longer trapped in a Landmark-only view.
+- Clicking a landmark entry in the Landmarks list:
+    Normal players → teleport Use GUI (existing openLandmarkUseGui).
+    Admins (pinpoint.admin.landmark) → new Landmark Manage GUI with teleport
+    and delete (requires pinpoint.admin.landmark.delete to confirm delete).
+- New openLandmarkManageGui: teleport, delete (with confirm screen), back.
+- New openConfirmLandmarkDeleteGui: cancel / confirm, removes hologram + block
+  (checks landmarks.block.material from config).
+- Normal Pinpoint Block right-click behavior is fully preserved:
+    Owner → Manage GUI. Non-owner → Use GUI.
+- Landmark creation limit bypass, compass distribution, waypoints.yml
+  compatibility, and PDC key separation are all unchanged.
+
+v1.3.27 — 2026-06-10
+Landmark Block Item (dedicated admin placement block)
+------------------------------------------------------
+- Added a dedicated Landmark Block item separate from normal Pinpoint Blocks.
+  PDC key: pinpoint:landmark_block. Normal Pinpoint Block PDC: pinpoint:waypoint_block.
+  The two items are completely distinct — isWaypointBlockItem() never matches a
+  Landmark Block and isLandmarkBlock() never matches a normal Pinpoint Block.
+- /wp landmark create <name> now gives admins a Landmark Block (not a Pinpoint
+  Block) if they don't already have one in their inventory.
+- BlockPlaceListener now handles Landmark Blocks and Pinpoint Blocks in separate
+  branches. A Landmark Block requires: (1) pinpoint.admin.landmark.create permission,
+  (2) active landmark setup mode (set by /wp landmark create). Both conditions must
+  be met or placement is cancelled with a configurable message.
+- If a Landmark Block is placed without active setup mode, placement is cancelled
+  and the setup-required-message is shown.
+- If a player without permission places a Landmark Block, placement is cancelled
+  and the no-permission-message is shown.
+- /wp landmark delete now reads landmarks.block.material from config when checking
+  the block type to remove (previously hardcoded to LODESTONE).
+- Normal Pinpoint creation logic is completely unchanged.
+- Landmark creation never touches the player waypoint limit.
+- Config additions under landmarks.block: material, name (MiniMessage), lore
+  (legacy & codes), no-permission-message, setup-required-message.
+
+v1.3.26 — 2026-06-10
+Automatic Pinpoint Compass Distribution (permanent tracking)
+-------------------------------------------------------------
+- Replaced first-join hasPlayedBefore() check with a permanent UUID-based
+  "received compass" tracking system, stored in compass-received.yml.
+- Every player who has never received a Pinpoint Compass gets one automatically
+  on their next login: new players, existing players, and anyone who joins after
+  this update.
+- Duplicate protection: before giving a compass, checks if the player already
+  possesses a valid Pinpoint Compass in their inventory. If they do, they are
+  marked as received without being given another. Prevents duplication for
+  players who already owned a compass from an older version or were given one
+  by staff.
+- If inventory is full, the compass drops naturally at the player's feet and the
+  "inventory-full" message is shown instead of the normal receive message.
+- After receiving (or already owning) a compass, the player is permanently
+  marked and will never be given one automatically again.
+- Added CompassDataManager — mirrors GuideBook's PlayerDataManager pattern.
+  Storage: plugins/Pinpoint/compass-received.yml, UUID-keyed, safe for large
+  player counts, persistent across restarts.
+- Renamed config section newcomer-compass → compass. Removed give-on-first-join
+  key (now always applies). Added inventory-full message key.
+- Config keys:
+    compass.enabled          (boolean, default true)
+    compass.message          (default "&bYou received a Pinpoint Compass!")
+    compass.inventory-full   (default "&eYour inventory was full...")
+
+v1.3.25 — 2026-06-10
+Newcomer Compass + Landmark Waypoint Type
+------------------------------------------
+- Feature: Newcomer Compass — first-time players automatically receive a Pinpoint
+  Compass on their very first join (hasPlayedBefore check). If inventory is full
+  the item drops naturally at the player's feet. Configurable under
+  newcomer-compass: {enabled, give-on-first-join, message}.
+- Feature: Landmarks — new admin-only LANDMARK waypoint type. Landmarks are
+  globally visible, have no owner, do not count against player waypoint limits,
+  and are stored alongside regular waypoints in waypoints.yml with type: LANDMARK.
+- Added WaypointType enum (PINPOINT / LANDMARK). All existing waypoints default
+  to PINPOINT on load; type is written to storage on next save.
+- Added /wp landmark create <name> — puts admin in pending-placement mode, gives
+  them a Pinpoint Block if needed, creates the landmark when the block is placed.
+- Added /wp landmark delete <name> — removes hologram, storage entry, and block.
+- Added /wp landmark list — shows all landmarks with coordinates.
+- Added /wp landmark reload — reloads config and refreshes landmark holograms.
+- Added LANDMARKS category tab in the Pinpoint GUI (slot 50, BEACON icon).
+- Landmark holograms use a MiniMessage gradient format, configurable under
+  landmarks.hologram.line-1 (default: gradient #00e5ff → #8a2be2 bold name).
+- Landmark teleport uses landmarks.teleport.delay-seconds (default 10) and
+  landmarks.teleport.cost (default 0); no owner is paid for landmark fees.
+- Added /pinpoint as an additional command alias alongside /wp.
+- Added permissions: pinpoint.admin.landmark (parent), .create, .delete, .list,
+  .reload — all default op.
+- Config additions: newcomer-compass block, landmarks block (hologram, gui,
+  teleport sub-sections).
+
+v1.3.24 — 2026-06-10
+Removed — All decorative glass panes from Pinpoint GUIs
+--------------------------------------------------------
+- Removed gray stained glass pane border fill from every GUI screen:
+  main hub, Manage, Use, Confirm Delete, Invite Players, Icon Picker,
+  Direction Picker, and all Party GUIs (Link Request, Party Management,
+  Confirm Remove, Travel Offer).
+- Removed glass pane pre-fill of empty content slots in the hub grid.
+- Removed glass pane row pre-fill from the bottom navigation bar.
+- Changed prev/next page buttons from RED/GREEN_STAINED_GLASS_PANE to
+  ARROW — these are functional items, not decorative.
+- Changed the empty-state indicator item in the hub from
+  GRAY_STAINED_GLASS_PANE to PAPER — it conveys information, not
+  decoration.
+- All cleared slots are left empty. No replacement filler items added.
+
+v1.3.23 — 2026-06-10
+Removed — Player-to-player teleport invite and shift-right-click access flow
+-----------------------------------------------------------------------------
+- Removed the shift-right-click player interaction (onPlayerInteractEntity).
+  Right-clicking or shift-right-clicking another player with the Pinpoint
+  Compass no longer does anything — the compass now only interacts with blocks
+  and air as before.
+- Removed GuiManager.openInviteSelectGui — the "Pinpoint Access: [player]"
+  GUI that let players grant/revoke waypoint access by right-clicking targets.
+- Removed GuiManager.sendInvite — the player-to-player teleport invite sender
+  that created a TeleportInvite and started a joint group countdown.
+- Removed GuiManager.openAcceptDenyGui — the "Teleport Invite" accept/deny GUI
+  shown to the invitee (was dead code in v1.3.22; now cleanly deleted).
+- Removed WaypointCommand.processAccept and processDeny — the /wp accept and
+  /wp deny handlers that resolved pending TeleportInvites.
+- Removed /wp accept and /wp deny from WaypointCommand tab-completion, usage
+  output, and plugin.yml command description.
+- Removed WaypointManager.TeleportInvite inner class and all associated state:
+  pendingInvites map, createInvite(), getInvite(), hasPendingInvite(),
+  removeInvite().
+- Shift+right-click air with Pinpoint Compass still follows a pending party
+  travel offer (unchanged party system behavior). Message updated from "No
+  pending invite or travel offer." to "No pending travel offer."
+- Removed invite-sent, invite-received, invite-accepted, invite-denied,
+  invite-expired, no-pending-invite message keys from config.yml.
+- Updated PartyGuiManager: removed the "Shift+right-click a player to link"
+  hint, since that interaction is no longer available.
+- Private waypoint access management via the Manage GUI (Invite Players button)
+  is fully preserved. The Invited Pinpoints category tab is fully preserved.
+  All waypoint invite data (invitedPlayers per waypoint) is preserved.
+- Party system (PartyGuiManager, PartyCommand, teleportGroupMember, partyFollow,
+  party travel notifications) is fully preserved and unaffected.
+
+v1.3.22 — 2026-06-10
+Changed — Category-based GUI navigation replaces flat Hub list
+--------------------------------------------------------------
+- Hub GUI replaced with a four-category tab system. Players open directly
+  to their owned Pinpoints (My Pinpoints) by default.
+- Categories:
+    My Pinpoints  — Pinpoints owned by the player (green names)
+    Invited       — Private Pinpoints the player has been invited to
+    Public        — Public Pinpoints not owned by the player
+    Players       — Online players (placeholder; teleport not yet implemented)
+- Category tabs are displayed in the bottom navigation row (slots 46-49).
+  The active tab shows a green name and "▶ Currently viewing" lore; inactive
+  tabs are gray with "Click to switch" lore.
+- The last-viewed category is remembered per player for the session. Opening
+  the compass or /wp reopens the previously viewed category.
+- Switching tabs via a tab button always resets to page 1 of that tab.
+  Returning via the Back button restores the exact page the player was on.
+- Bottom row layout (slots 45-53):
+    45: Previous Page  |  46: My Pinpoints  |  47: Invited  |  48: Public
+    49: Players        |  50: separator     |  51: Page X/Y (multi-page only)
+    52: Close          |  53: Next Page
+- Per-tab lore cleanup: redundant labels removed where context makes them
+  obvious. "Owner: You" and "Category: Mine" removed from My Pinpoints tab.
+  "Public" label removed from the Public tab. "Private — invited" shown in
+  the Invited tab to explain why access exists.
+- Empty-state message shown at slot 22 when a category has no content.
+- Block right-click now skips the hub entirely and opens Manage GUI (owner)
+  or Use GUI (non-owner) directly for that specific Pinpoint. One click fewer
+  for the most common block interaction.
+- Use GUI now has a consistent gray glass pane border matching all other GUIs.
+  Back button returns to the last-viewed category list.
+- Manage GUI Back button returns to the last-viewed category list (previously
+  returned to the flat Hub with a "This Pinpoint" context button).
+- WaypointManager: added getInvitedWaypoints(UUID) and getPublicWaypoints(UUID)
+  for category-filtered queries.
+- Players tab: shows online players (excluding self) as skull items with
+  "Player teleport — coming soon" lore. No click behaviour yet.
+
+v1.3.21 — 2026-06-05
+Changed — Icon system simplified: permission = visible, no permission = hidden
+------------------------------------------------------------------------------
+- icon-permissions config is now a simple flat map: permission node → list of
+  materials. No enabled flag, no hide-when-locked flag, no sub-keys.
+- Players see only the icons from groups they have permission for. If they lack
+  the permission, those icons are not shown at all — no locked state, no error
+  message, no red lore.
+- OP players see all permission-gated icons (Bukkit grants OP all permissions).
+- Removed: buildFullPalette, buildLockedMap, loadIconGroups, resolveMaterials,
+  IconGroup record, permToLabel, iconLockedMessage from GuiManager.java.
+- Removed: icon-locked-media, icon-locked-vip, icon-locked-admin,
+  icon-locked-generic message keys from config.yml.
+- Old flat-list config format was already correct — no migration needed.
+  The v1.3.20 enabled/hide-when-locked sub-key format is no longer supported.
+
+v1.3.20 — 2026-06-05
+Added — Per-group enabled/hide-when-locked controls for icon-permissions
+-------------------------------------------------------------------------
+- icon-permissions config groups now support three sub-keys:
+    enabled: true/false         — false removes the group entirely; icons
+                                  never appear for anyone in the picker.
+    hide-when-locked: true/false — true hides icons from players who lack
+                                   the permission (no icon shown at all);
+                                   false shows icons with red "Requires: X"
+                                   lore and an error on click (old behavior).
+    icons: [list of materials]  — unchanged from before.
+- Default config ships with media and vip disabled (enabled: false) and all
+  groups set to hide-when-locked: true. Admin group remains enabled and hidden
+  by default (admins already have the permission via op).
+- Backwards compatible: old flat-list format (perm key → material list) still
+  works and is treated as enabled=true, hide-when-locked=false.
+- GuiManager: buildFullPalette() now takes a Player; loadIconGroups() parses
+  both old and new config formats; resolveMaterials() helper extracted.
+- Players only see icons from groups that are enabled AND (either they have
+  the permission OR hide-when-locked is false).
+
+v1.3.19 — 2026-06-05
+Changed — Remove automatic facing-direction prompt at Pinpoint creation
+-----------------------------------------------------------------------
+- The cardinal direction picker no longer opens automatically after a
+  player names a new Pinpoint.
+- Creation flow is now: place block → type name → Pinpoint created.
+  No direction prompt appears.
+- Owners can still set a facing direction at any time via the Manage GUI
+  ("Facing Direction" slot).
+- If no direction is ever chosen, the teleport destination inherits the
+  yaw/pitch stored in the waypoint's block location (yaw 0 = South-facing).
+- No change to the Manage GUI, direction picker logic, teleport behaviour,
+  cooldowns, fees, holograms, or any other system.
+
+v1.3.18 — 2026-06-05
+Changed — Cardinal direction picker integrated into creation flow; legacy yaw auto-migrated
+-------------------------------------------------------------------------------------------
+- After naming a new Pinpoint, the "Facing Direction" picker GUI opens automatically
+  so every Pinpoint gets a cardinal direction set at creation time rather than requiring
+  a separate visit to the Manage GUI.
+- Old Pinpoints that have a raw teleport-yaw value stored in waypoints.yml are now
+  auto-migrated to the nearest cardinal direction on load (no manual action needed):
+    yaw   0 / near 0    → SOUTH
+    yaw  90              → WEST
+    yaw 180              → NORTH
+    yaw 270 / near -90   → EAST
+  The converted direction is persisted to teleport-direction on the next save; the
+  old teleport-yaw / teleport-pitch keys are removed from YAML on save.
+- saveWaypoint() simplified: only writes teleport-direction; always nulls old
+  teleport-yaw and teleport-pitch keys so they are cleaned from YAML on any save.
+- Manage GUI slot 21 ("Facing Direction") no longer has a legacy-yaw display
+  branch — all loaded data is cardinal so only hasTeleportDirection() is checked.
+- No change to teleport behaviour, cooldowns, fees, invites, party follow,
+  hologram, or icon systems.
+
+v1.3.17 — 2026-06-04
+Changed — Teleport facing replaced with cardinal direction picker
+----------------------------------------------------------------
+- "Facing Direction" button (slot 21, Manage GUI) now opens a direction
+  picker GUI instead of immediately capturing the player's exact angle.
+- Direction picker: North (blue), South (red), East (green), West (yellow)
+  concrete blocks, plus a Clear Direction button (Barrier) and Back (Arrow).
+- Currently set direction is highlighted with green "Currently set" lore.
+- Direction stored as NORTH/SOUTH/EAST/WEST string in waypoints.yml under
+  teleport-direction. Setting a new direction clears the old teleport-yaw /
+  teleport-pitch keys.
+- Yaw applied on teleport: NORTH=180, SOUTH=0, EAST=-90, WEST=90. Pitch
+  always set to level (0).
+- Backward compatible: existing Pinpoints with saved teleport-yaw/pitch
+  continue to work unchanged until the owner picks a new direction.
+- Manage GUI button title and lore reflect both old (legacy yaw data) and
+  new (cardinal) direction state transparently.
+
+v1.3.16 — 2026-06-04
+Fix — Icon picker extra icons never appeared (Bukkit dot-splitting bug)
+-----------------------------------------------------------------------
+- buildFullPalette() and buildLockedMap() used getKeys(false), which only
+  returned the top-level YAML node "pinpoint" — not the full permission
+  paths "pinpoint.icons.media" etc. — because Bukkit's MemorySection splits
+  all dotted YAML keys into nested sections on load.
+- Fixed by using getKeys(true) to iterate all deep paths, then filtering
+  intermediate section nodes with an isEmpty() guard on getStringList().
+- No config changes required. The icon-permissions section in config.yml
+  was already correct; the bug was entirely in the Java iteration logic.
+- The icon-permissions feature has never worked since its introduction in
+  v1.3.14; this is the first release where extra icons actually appear.
+
+v1.3.15 — 2026-06-03
+Changed — All icons visible in picker; locked icons show error on click
+-----------------------------------------------------------------------
+- Icon picker now always shows all icons from every permission group
+  (Media, VIP, Admin), regardless of whether the player has permission.
+- Players without permission for a group see the icon with lore:
+    "Requires: Media" / "Requires: VIP" / "Requires: Admin" (red text).
+- Clicking a locked icon sends an error message and keeps the GUI open:
+    Media:  "You need the Media role to use this icon."
+    VIP:    "You need the VIP role to use this icon."
+    Admin:  "You need the Admin role to use this icon."
+  Custom permission groups fall back to a generic locked message.
+- No change to base icons (always unlocked), existing icon selections,
+  waypoint data, or any permission nodes.
+- Dynamic inventory sizing unchanged — icon count includes all groups.
+
+v1.3.14 — 2026-06-03
+Added — Teleport pitch + permission-based extra icons
+------------------------------------------------------
+Feature 1: Saved teleport facing now stores yaw AND pitch.
+- The "Set Facing Direction" button in the Manage GUI now captures both the
+  owner's horizontal direction (yaw) and vertical angle (pitch).
+- Lore on the button shows e.g. "Direction: North, looking up".
+- Action bar confirmation on save shows e.g. "Facing saved: North, level."
+- teleport-pitch persisted to waypoints.yml alongside teleport-yaw.
+- Existing Pinpoints without a saved pitch default to level (pitch 0).
+- All teleport paths (pearl, block, party invite, party follow) now land the
+  player at the saved pitch, not a hardcoded level pitch.
+- Backwards compatible: Pinpoints without a saved yaw/pitch are unaffected.
+
+Feature 2: Permission-based extra icons in the icon picker.
+- Default icon palette (10 items) is unchanged and available to all players.
+- Server admins can add extra icon groups in config.yml under
+  icon-permissions, keyed by permission node.
+- Three built-in permission groups (materials configurable in config.yml):
+    pinpoint.icons.media  (default: false) — Note Block, Jukebox, Spyglass,
+                                             Painting, Glow Item Frame
+    pinpoint.icons.vip    (default: false) — Gold Block, Diamond Block,
+                                             Nether Star, Beacon,
+                                             Totem of Undying
+    pinpoint.icons.admin  (default: op)    — Command Block, Spawner,
+                                             Structure Block, Bedrock
+- Players without the permission never see those icons in the picker.
+- Existing Pinpoint icons are never reset — only changed when owner clicks.
+- Icon picker inventory now sizes dynamically to fit the full palette
+  (7 icons per row, 2 border rows); base 10 icons = same 36-slot layout.
+
+v1.3.13 — 2026-06-03
+Fix — Teleport fee charged after successful teleport, not before
+-----------------------------------------------------------------
+- Fee is now withdrawn only after player.teleport() succeeds.
+- If the teleport is cancelled or interrupted before the countdown ends, no
+  fee is charged.
+- If no safe landing spot is found and the teleport aborts, no fee is charged
+  (removed the now-unnecessary refund block in the safe-spot failure path).
+- If owner credit (depositToOwner) fails after a successful teleport, the
+  player is refunded as before — but the teleport is no longer rolled back,
+  since the player has already landed.
+- Balance check (hasBalance) still runs before the countdown fires so players
+  with insufficient funds are turned away immediately.
+- All fee amounts, fee calculations, countdown behaviour, restrictions, and
+  validation are unchanged.
+
+v1.3.12 — 2026-05-25
+Added — Owner-configurable teleport facing direction
+-----------------------------------------------------
+- New "Set Facing Direction" button (Recovery Compass) in the owner Manage
+  GUI (slot next to Change Icon).
+- Clicking saves the owner's current horizontal facing as the Pinpoint's
+  teleport direction.
+- Action bar confirms the saved direction (e.g. "Teleport facing set to
+  North.").
+- Button label updates to show the current configured direction (e.g.
+  "Facing: North").
+- All teleporting players — including via pearl, block, party follow, and
+  invite-travel — land facing that direction with a level pitch.
+- Backward compatible: existing Pinpoints without a saved facing continue to
+  behave exactly as before (players face the direction stored at block-
+  placement time).
+- Direction is persisted to waypoints.yml as teleport-yaw. Absent key = not
+  configured.
+
+v1.3.11 — 2026-05-22
+Changed — Hub GUI: sorted display, owner highlighting, category icons
+----------------------------------------------------------------------
+Sorting
+- Hub GUI now shows pinpoints in three groups: owned first (green), invited/
+  private second, public third. Within each group, sorted A-Z by name.
+
+Owner highlighting
+- Owned pinpoints display with a green name, "Owner: You" lore, and
+  "Category: Mine" lore instead of the generic owner/visibility lines.
+
+Icon palette
+- Old generic palette replaced with nine named categories:
+    Home    — Red Bed
+    Base    — Shield
+    Farm    — Wheat
+    Shop    — Emerald
+    Mine    — Iron Pickaxe
+    Village — Bell
+    Nether  — Netherrack
+    End     — Ender Eye
+    Other   — Compass
+    Default — Lodestone
+- Category names shown in "Change Icon" and "Icon changed to" messages
+  instead of raw material names.
+
+v1.3.10 — 2026-05-19
+Changed — Pinpoint Compass recipe simplified
+---------------------------------------------
+Recipe changed from 4x Compass (corners) + 1x Ender Eye (center) to
+1x Ender Eye (top-center) + 1x Compass (center). Easier to remember and
+cheaper to craft.
+
+v1.3.9 — 2026-05-18
+Fixed — Pinpoint blocks unreachable with empty hand or in WorldGuard regions
+-----------------------------------------------------------------------------
+- The hand guard sat at the top of onPlayerInteract before the waypoint-block
+  path, causing failures with null getHand() (Geyser/Bedrock) and with
+  WorldGuard-cancelled events.
+- Waypoint block path now evaluated before any hand filter.
+- Vanilla block use cancelled for all hand values.
+- GUI opened only for the HAND-or-null-hand firing.
+- Compass path retains a strict main-hand guard.
+- EventPriority.HIGH without ignoreCancelled kept so WorldGuard-cancelled
+  events are still processed.
+
+v1.3.8 — 2026-05-18
+Changed — Ender Pearl compatibility removed
+-------------------------------------------
+- isWaypointCompass() now requires Material.COMPASS in addition to the PDC
+  tag. Old PDC-tagged Ender Pearl items no longer trigger Pinpoint behaviour.
+- createWaypointPearl / isWaypointPearl / giveWaypointPearl renamed to
+  createWaypointCompass / isWaypointCompass / giveWaypointCompass.
+  KEY_WAYPOINT_PEARL renamed to KEY_WAYPOINT_COMPASS (PDC string value
+  unchanged: "waypoint_pearl").
+- /waypoint give <player> pearl alias removed; only compass accepted.
+- Offhand cancel guard removed from WaypointInteractListener.
+- Recipe key renamed from waypoint_pearl_recipe to waypoint_compass_recipe.
+
+v1.3.7 — 2026-05-18
+Changed — Pinpoint navigation item is now a Compass
+----------------------------------------------------
+- createWaypointPearl() now returns Material.COMPASS with display name
+  "Pinpoint Compass". New recipe: 4x Compass (corners) + 1x Ender Eye
+  (center). Internal PDC key (waypoint_pearl) unchanged — old tagged Ender
+  Pearl items still recognised and function identically.
+- All player-facing text updated from "Pearl" to "Compass".
+
+Fixed
+- Breaking a named Pinpoint no longer drops a vanilla Lodestone —
+  BlockBreakListener suppresses the drop and returns the tagged Pinpoint block
+  item to the owner.
+
+v1.3.6 — 2026-05-18
+Fixed — Pinpoint pearl in offhand no longer throws as vanilla ender pearl
+--------------------------------------------------------------------------
+- PlayerInteractEvent fires twice (HAND and OFF_HAND). Previous handler
+  returned early for OFF_HAND before cancelling. Fix: check both hands for
+  the Pinpoint pearl PDC tag and cancel unconditionally before the hand guard.
+
+v1.3.5 — 2026-05-17
+Fixed — Breaking an unfinished Pinpoint during setup refunds the item
+----------------------------------------------------------------------
+- If a player breaks the Lodestone block before completing the naming step,
+  setup state is cancelled, vanilla drop suppressed, and the tagged Pinpoint
+  item is returned.
+
+v1.3.4 — 2026-05-17
+Added — Post-teleport invincibility
+-------------------------------------
+- After any successful Pinpoint teleport, the player receives 5 seconds of
+  invincibility. Cancelled countdowns grant nothing. Players already
+  invulnerable are not affected.
+
+v1.3.3 — 2026-05-17
+Changed — Group teleport: synchronized 5-second countdown
+----------------------------------------------------------
+- Invite-accept: both inviter and invitee start a shared 5-second countdown
+  in the same server tick. Both must stand still. Both arrive together.
+- Party follow: 5-second countdown with movement check (was 1-second insta-
+  teleport). Action bar shows "Traveling with [name] in Xs... Don't move."
+
+v1.3.2 — 2026-05-17
+Changed — Shift+right-click player opens invite/remove GUI
+-----------------------------------------------------------
+- Shift+right-clicking a player with the Pinpoint Pearl now opens the
+  "Pinpoint Access" GUI for the player's owned Pinpoints. If the target
+  already has access, clicking removes it instead of re-inviting.
+- Falls back to party link only when the player owns no Pinpoints.
+- Invite/remove GUI title changed from "Invite [player] to:" to
+  "Pinpoint Access: [player]".
+
+v1.3.1 — 2026-05-17
+Fixed — Hologram flash on player join
+--------------------------------------
+- hideAllFromPlayer now applied immediately on join (synchronous); only the
+  visibility re-evaluation is deferred 5 ticks.
+
+v1.3.0 — 2026-05-17
+Added — Hologram privacy: distance and line-of-sight filtering
+---------------------------------------------------------------
+- Holograms hidden per-player via showEntity/hideEntity.
+- Repeating task (1/s) evaluates every player against every hologram:
+    holograms.view-distance (default 8) — max visible distance in blocks.
+    holograms.require-line-of-sight (default true) — hides when solid blocks
+    are between the player and the Pinpoint block.
+
+v1.2.9 — 2026-05-17
+Fixed — Confirm-delete returns the Pinpoint item
+-------------------------------------------------
+- Deleting via GUI now gives the Lodestone Pinpoint item back to the owner
+  (or drops at block location if inventory is full). Item returned only after
+  all data (hologram, memory, YAML) is cleaned up.
+
+v1.2.8 — 2026-05-16
+Added — Hub GUI pagination
+--------------------------
+- Fixed 6-row (54-slot) inventory, 28 Pinpoints per page. RED_STAINED_GLASS_
+  PANE (slot 45) = previous; GREEN_STAINED_GLASS_PANE (slot 53) = next.
+  PAPER (slot 47) shows current page. Page remembered when navigating to
+  manage GUI and back; reset on explicit close.
+
+Changed — All "waypoint/waystone" text renamed to "Pinpoint/Pinpoints"
+- Affects messages, GUI labels, item names, lore, config.yml message values.
+  Database keys, PDC keys, permission nodes, and command aliases unchanged.
+
+v1.2.7 — 2026-05-15
+Fixed — Shift+Pearl now accepts teleport invites immediately
+------------------------------------------------------------
+- sendInvite() no longer calls openAcceptDenyGui on the target. Target
+  receives a chat-only notification. Shift+right-click accepts immediately
+  and starts the countdown.
+- processAccept() closes any open GUI before starting countdown.
+
+v1.2.6 — 2026-05-15
+Fixed — Invite Players GUI completely rewritten
+------------------------------------------------
+- Now lists all online players (excluding owner). Green lore = already
+  invited (click to remove). Yellow lore = not invited (click to add).
+  Invitee receives chat notification when added.
+
+Fixed — Teleport fee now pays the waypoint owner
+-------------------------------------------------
+- EconomyManager.depositToOwner(UUID, double) credits the owner via Vault
+  OfflinePlayer API even when offline. If deposit fails, player is refunded
+  and teleport is aborted.
+
+Changed
+- Hologram default height raised to 2.8.
+- Block teleport delay default changed to 5s (was 0/instant).
+- Action bar countdown added for all teleport types.
+
+v1.2.5 — 2026-05-15
+Changed — config.yml cleanup
+------------------------------
+- Removed vestigial keys left over from the pre-v1.0.5 Recall Orb era
+  (none referenced in Java source).
+
+v1.2.4 — 2026-05-15
+Fixed
+------
+- TeleportCancelListener.onPlayerMove: ignoreCancelled changed false -> true
+  (anti-cheat cancelled events no longer wrongly cancel countdowns).
+- TeleportHelper.partyFollow(): re-validates waypoint UUID in 1-second delay
+  before doTeleport.
+
+Changed — README rewritten to reflect current feature set.
+
+v1.2.3 — 2026-05-15
+Added — Custom waypoint icons
+------------------------------
+- Owners choose a display icon from a palette of 10 materials via the
+  "Change Icon" GUI (slot 20 in Manage GUI).
+- icon field added to waypoints.yml. Existing waypoints default to LODESTONE.
+
+Changed — Hub, Use, Confirm-Delete, and Invite-Select GUIs use the chosen
+icon material.
+
+v1.2.2 — 2026-05-14
+Added — Waypoint holograms
+---------------------------
+- Floating text above each Lodestone block: name, owner, visibility, fee.
+- Implemented as invisible marker armor stands (no hitbox, no gravity).
+- Spawns/updates on: creation, rename, visibility toggle, fee change, reload.
+- Removed on: deletion (GUI or block break), plugin disable.
+- Auto-restored on chunk reload via ChunkLoadEvent.
+- New config section holograms: enabled, height, show-owner, show-fee.
+
+v1.2.1 — 2026-05-14
+Changed — Split teleport delay into two config keys
+-----------------------------------------------------
+- waypoint-block-teleport-delay-seconds: 0 (instant, default)
+- waypoint-pearl-teleport-delay-seconds: 10
+- Old teleport-delay-seconds key removed.
+- New message teleport-block for instant block teleport.
+
+v1.2.0 — 2026-05-14
+Fixed — Infinite follow loop
+------------------------------
+- Party follow teleports pass suppressFollowPrompt=true to doTeleport().
+- Shift-click pearl no longer opens the GUI; checks pending invite/travel
+  offer first.
+- Regular right-click player with pearl opens waypoint invite-select GUI.
+- Pending invite and travel offer state cleared on logout.
+
+Changed — Travel offers are now GUI-first
+- Party travel shows a Follow/Stay inventory GUI plus a plain-text hint.
+- Stay dismisses the offer state.
+- /party follow clears offer state after accept.
+
+v1.1.0 — 2026-05-14
+Added — Party system
+---------------------
+- Shift+right-click player with Waypoint Pearl to send a link request.
+  Accepting merges both players (and their parties) into one group.
+- Party merging: A-B + B-C = A-B-C.
+- Travel notifications with Follow/Stay when any member teleports.
+- Party management GUI (/party).
+- /party command (alias /pp): leave, disband, remove <player>, accept, deny,
+  follow [id], stay.
+- parties.yml persistence.
+- New config: link-request-timeout (60s), party-travel-offer-timeout (30s).
+
+v1.0.8 — 2026-05-14
+Changed — Plugin renamed to Pinpoint
+--------------------------------------
+- Package changed from com.waypointsystem to com.pinpoint.
+- Main class renamed from WaypointPlugin to PinpointPlugin.
+- All gameplay commands, permissions, and data files unchanged.
+
+v1.0.7 — 2026-05-14
+Changed — Teleport countdown no longer cancels on item switch
+--------------------------------------------------------------
+- Only movement, damage, and logout still cancel it.
+
+Removed — teleport-cancelled-item message key.
+
+v1.0.6 — 2026-05-14
+Added — Teleport countdown
+---------------------------
+- All teleports count down for teleport-delay-seconds (default 10) before
+  firing. Moving, taking damage, switching item, or logging out cancels it.
+- TeleportCancelListener (PlayerMoveEvent, EntityDamageEvent,
+  PlayerItemHeldEvent, PlayerQuitEvent).
+- teleport-delay-seconds: 10 config option.
+- teleport-cooldown-seconds: 3 config option.
+- New messages: teleport-countdown, teleport-cancelled-moved,
+  teleport-cancelled-damaged, teleport-cancelled-item.
+
+Changed
+- Cooldown now applies to all players (was non-owners only).
+- All owner-only GUI actions verified server-side in the click handler.
+- Public/private toggle uses EMERALD_BLOCK / REDSTONE_BLOCK.
+
+v1.0.5 — 2026-05-14
+Changed (breaking redesign)
+----------------------------
+- Waypoint is now a placeable block (Lodestone) — craft with 8x Quartz +
+  Ender Eye, place in the world; the block IS the waypoint.
+- Right-click the placed block to open the waypoint GUI.
+- Block protection — only owner or waypoint.admin can break a waypoint block.
+- Waypoint Pearl replaces Recall Orb — Ender Pearl item (4x EP + Ender Eye).
+  Right-click to open hub; right-click player to send teleport invite.
+- Cooldown increased to 10s; applies to non-owners only.
+- /waypoint give <player> pearl.
+
+v1.0.4 — 2026-05-14
+Added
+------
+- Owner can delete a waypoint from Manage GUI (confirmation screen).
+- Owner can rename a waypoint from Manage GUI (chat input, cancel support,
+  60s timeout).
+- require-owner-for-orb-invites config option (default true).
+- New messages: waypoint-deleted, waypoint-renamed, rename-prompt, orb-invalid.
+
+Changed
+- Waypoint limit enforced at right-click time (before name prompt).
+
+v1.0.3 — 2026-05-14
+Added
+------
+- /waypoint list — shows all accessible waypoints with name, owner,
+  visibility, and fee.
+- /waypoint menu — explicit subcommand to open the hub GUI.
+- Recall Orb cooldown (teleport-cooldown-seconds).
+- max-waypoints-per-player config option (default 10).
+- allow-recall-orb-invites config toggle (default true).
+
+Changed — Permissions renamed from waypointsystem.* to waypoint.*.
+
+v1.0.2 — 2026-05-14
+Added
+------
+- WaypointManager.shortId(UUID) — first 4 hex chars (e.g. #A1B2).
+- Duplicate-name detection — GUIs show Home (#A1B2) when names collide.
+- /waypoint give orb <name> detects multi-match names.
+
+Changed — All storage and linking uses UUIDs exclusively.
+
+v1.0.1 — 2026-05-14
+Added
+------
+- Startup logs: version, Vault status, recipe registration, waypoint count.
+- /waypoint give <player> waypoint [amount].
+- /waypoint give <player> orb <name|id> [amount].
+- Tab completion for give subcommands.
+- cancel keyword support in naming and fee chat inputs.
+- 60-second timeout for naming and fee inputs.
+- Recall Orb lore shows waypoint name, owner name, invite capability.
+- EconomyManager.deposit() for fee refund if teleport is aborted.
+- TeleportHelper: world-loaded check, findSafe() returns null on failure,
+  fee refunded on abort.
+
+v1.0.0 — 2026-05-14
+Initial release
+----------------
+- Craftable Waypoint item (8x Nether Quartz + Ender Eye).
+- Chat-based first-time naming with 30-second timeout.
+- Waypoint Hub GUI showing all accessible waypoints.
+- Owner Manage GUI: toggle public/private, set fee, invite players, create
+  Recall Orb.
+- Recall Orb: right-click to teleport, right-click player to send invite.
+- GUI accept/deny for teleport invites; /waypoint accept / /waypoint deny.
+- Vault soft-dependency for fee system.
+- Safe teleport destination finder with configurable spiral search radius.
+- YAML persistence (waypoints.yml).
+- Geyser-friendly GUI-first design.

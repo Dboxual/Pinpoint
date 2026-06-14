@@ -8,12 +8,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.List;
 import java.util.Optional;
 
 public class WaypointInteractListener implements Listener {
@@ -90,17 +88,13 @@ public class WaypointInteractListener implements Listener {
         }
 
         if (player.isSneaking()) {
-            // Shift+right-click: accept pending teleport invite, or follow party travel offer
-            if (plugin.getWaypointManager().hasPendingInvite(player.getUniqueId())) {
-                plugin.getCommandHandler().processAccept(player);
-                return;
-            }
+            // Shift+right-click: follow party travel offer
             TravelOffer offer = plugin.getPartyManager().getLastTravelOffer(player.getUniqueId());
             if (offer != null) {
                 plugin.getPartyCommand().processFollowOffer(player, offer);
                 return;
             }
-            player.sendMessage(plugin.msg("prefix") + "§7No pending invite or travel offer.");
+            player.sendMessage(plugin.msg("prefix") + "§7No pending travel offer.");
             return;
         }
 
@@ -108,39 +102,4 @@ public class WaypointInteractListener implements Listener {
         plugin.getGuiManager().openHubGui(player, null, false);
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
-        if (!(event.getRightClicked() instanceof Player target)) return;
-
-        Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand();
-
-        if (!plugin.getItemManager().isWaypointCompass(item)) return;
-        event.setCancelled(true);
-
-        if (!player.hasPermission("waypoint.use")) {
-            player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
-            return;
-        }
-
-        List<Waypoint> owned = plugin.getWaypointManager().getOwnedWaypoints(player.getUniqueId());
-
-        if (player.isSneaking()) {
-            // Shift+right-click player → invite or remove access
-            if (!owned.isEmpty()) {
-                plugin.getGuiManager().openInviteSelectGui(player, target, owned);
-            } else {
-                // No Pinpoints owned — fall back to party link request
-                plugin.getPartyGuiManager().sendLinkRequest(player, target);
-            }
-        } else {
-            // Regular right-click player → invite or remove access
-            if (owned.isEmpty()) {
-                player.sendMessage(plugin.msg("prefix") + "§cYou don't own any Pinpoints to invite to.");
-                return;
-            }
-            plugin.getGuiManager().openInviteSelectGui(player, target, owned);
-        }
-    }
 }

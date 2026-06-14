@@ -9,9 +9,12 @@ import java.util.*;
 
 public class Waypoint {
 
+    public static final UUID LANDMARK_OWNER_UUID = new UUID(0L, 0L);
+
     private final UUID id;
     private String name;
     private final UUID ownerUuid;
+    private WaypointType type = WaypointType.PINPOINT;
     private String ownerName;
     private String worldName;
     private double x, y, z;
@@ -22,7 +25,10 @@ public class Waypoint {
     private final Set<UUID> linkedRecallOrbs = new HashSet<>();
     private String iconMaterial = "LODESTONE";
     // Owner-configured teleport facing. Float.NaN = not set (uses safe-spot default).
-    private float teleportYaw = Float.NaN;
+    private float teleportYaw   = Float.NaN;
+    private float teleportPitch = 0f;
+    // Cardinal direction (NORTH/SOUTH/EAST/WEST). null = not set. Takes priority over teleportYaw.
+    private String teleportDirection = null;
 
     public Waypoint(UUID id, String name, UUID ownerUuid, String ownerName,
                     Location location, boolean isPublic, double fee) {
@@ -51,12 +57,17 @@ public class Waypoint {
     }
 
     public boolean canAccess(UUID playerUuid) {
+        if (type == WaypointType.LANDMARK) return true;
         return isPublic || ownerUuid.equals(playerUuid) || invitedPlayers.contains(playerUuid);
     }
 
     public boolean isOwner(UUID playerUuid) {
+        if (type == WaypointType.LANDMARK) return false;
         return ownerUuid.equals(playerUuid);
     }
+
+    public WaypointType getType() { return type; }
+    public void setType(WaypointType type) { this.type = type; }
 
     public UUID getId() { return id; }
     public String getName() { return name; }
@@ -92,5 +103,22 @@ public class Waypoint {
 
     public boolean hasTeleportYaw() { return !Float.isNaN(teleportYaw); }
     public float getTeleportYaw()   { return teleportYaw; }
+    public float getTeleportPitch() { return teleportPitch; }
     public void setTeleportYaw(float yaw) { this.teleportYaw = yaw; }
+    public void setTeleportPitch(float pitch) { this.teleportPitch = pitch; }
+
+    public boolean hasTeleportDirection() { return teleportDirection != null; }
+    public String getTeleportDirection()  { return teleportDirection; }
+
+    public void setTeleportDirection(String direction) {
+        this.teleportDirection = direction;
+        this.teleportYaw       = Float.NaN;
+        this.teleportPitch     = 0f;
+    }
+
+    public void clearTeleportDirection() {
+        this.teleportDirection = null;
+        this.teleportYaw       = Float.NaN;
+        this.teleportPitch     = 0f;
+    }
 }
