@@ -2596,3 +2596,10 @@ Soft: Vault (economy/fee system), Geyser-Spigot (Bedrock compatibility)
 - Any hard dependency beyond Paper
 - Per-world waypoint restrictions (not planned)
 - Waypoint categories or folders
+
+---
+[2026-06-14] BRANCH CLEANUP
+- Merged: dev → main (fast-forward, 1 commit)
+- Final main commit: 1f8461b766c8059386dc20e4b4e1c6d0482ff7ec
+- Dev deleted: YES (local and remote)
+- Notes: Major source update (NewcomerListener, WaypointType, CompassDataManager added).
