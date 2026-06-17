@@ -55,6 +55,12 @@ public class WaypointInteractListener implements Listener {
                 // (HAND or null-hand) firing and ignore the duplicate OFF_HAND event.
                 if (EquipmentSlot.OFF_HAND.equals(hand)) return;
 
+                // Safety: if the physical block is gone (explosion, grief, etc.), clean up stale data.
+                if (plugin.getWaypointManager().isBlockStale(wpOpt.get())) {
+                    plugin.getWaypointManager().cleanStale(wpOpt.get());
+                    return;
+                }
+
                 if (!player.hasPermission("waypoint.use")) {
                     player.sendMessage(plugin.msg("prefix") + plugin.msgCfg("no-permission"));
                     return;

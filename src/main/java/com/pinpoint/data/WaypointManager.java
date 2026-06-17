@@ -2,6 +2,7 @@ package com.pinpoint.data;
 
 import com.pinpoint.PinpointPlugin;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
 import java.util.*;
@@ -352,6 +353,32 @@ public class WaypointManager {
             this.requesterName = requesterName;
             this.targetName = targetName;
         }
+    }
+
+    // --- Stale block validation ---
+
+    /** Returns true if the physical block at this waypoint's location is no longer the expected block type. */
+    public boolean isBlockStale(Waypoint wp) {
+        Location loc = wp.getLocation();
+        if (loc == null || loc.getWorld() == null) return true;
+        if (!loc.getWorld().isChunkLoaded(loc.getBlockX() >> 4, loc.getBlockZ() >> 4)) return false;
+        Material actual = loc.getWorld().getBlockAt(loc).getType();
+        if (wp.getType() == WaypointType.LANDMARK) {
+            String matName = plugin.getConfig().getString("landmarks.block.material", "LODESTONE");
+            Material expected = Material.matchMaterial(matName);
+            if (expected == null) expected = Material.LODESTONE;
+            return actual != expected;
+        }
+        return actual != Material.LODESTONE;
+    }
+
+    /** Fully removes a waypoint whose physical block is gone: deletes hologram, data, and logs. */
+    public void cleanStale(Waypoint wp) {
+        plugin.getLogger().info("[Pinpoint] Removed stale pinpoint at "
+                + wp.getWorldName() + "," + (int) wp.getX() + "," + (int) wp.getY() + "," + (int) wp.getZ()
+                + " because the block no longer exists.");
+        plugin.getHologramManager().removeHologram(wp.getId());
+        deleteWaypoint(wp.getId());
     }
 
 }

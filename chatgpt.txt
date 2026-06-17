@@ -2603,3 +2603,59 @@ Soft: Vault (economy/fee system), Geyser-Spigot (Bedrock compatibility)
 - Final main commit: 1f8461b766c8059386dc20e4b4e1c6d0482ff7ec
 - Dev deleted: YES (local and remote)
 - Notes: Major source update (NewcomerListener, WaypointType, CompassDataManager added).
+
+---
+[2026-06-15] EXPLOSION CLEANUP FIX
+
+BUG: Ghost Pinpoint data survived explosion/TNT destruction.
+When a Pinpoint (Lodestone) block was destroyed by an explosion, the visible block
+disappeared but the saved waypoint data (location index, storage file, hologram
+entities) remained. If a player later placed any block at that same location, it
+still registered as a Pinpoint — opening the GUI and showing a hologram with old
+owner/data.
+
+ROOT CAUSE:
+BlockBreakEvent is only fired for player-initiated breaks. It does NOT fire when a
+block is destroyed by TNT (EntityExplodeEvent) or by block explosions (BlockExplodeEvent).
+No listener was handling those events, so the plugin never cleaned up the waypoint.
+
+EVENTS NOW HANDLED:
+- EntityExplodeEvent (TNT, creeper, etc.) — new ExplosionListener
+- BlockExplodeEvent (respawn anchor, bed in Nether, etc.) — new ExplosionListener
+- BlockBreakEvent (already handled) — BlockBreakListener (unchanged)
+- PlayerInteractEvent — WaypointInteractListener (now includes stale guard)
+
+FILES CHANGED:
+- listeners/ExplosionListener.java (NEW)
+  Listens to EntityExplodeEvent and BlockExplodeEvent at HIGH priority.
+  For every block in the explosion list, checks if the location is a saved Pinpoint.
+  If yes, calls WaypointManager.cleanStale() to fully remove it.
+
+- data/WaypointManager.java
+  Added isBlockStale(Waypoint) — verifies the actual block at the saved location
+  is still the correct material (LODESTONE for Pinpoints, configured material for
+  Landmarks). Returns false if chunk is unloaded (safe assumption: can't verify).
+  Added cleanStale(Waypoint) — removes the hologram, deletes from in-memory map
+  and storage file, logs: "[Pinpoint] Removed stale pinpoint at world,x,y,z because
+  the block no longer exists."
+
+- listeners/WaypointInteractListener.java
+  Added stale check before opening the GUI. If the physical block is no longer the
+  expected type, cleanStale() fires and the interaction returns silently.
+  This prevents ghost Pinpoints from surviving any future edge case not covered by
+  an explicit event.
+
+- PinpointPlugin.java
+  Registers ExplosionListener alongside the other listeners in onEnable().
+
+STALE DATA AUTO-VALIDATION:
+Every time a player interacts with a Pinpoint block, isBlockStale() is called first.
+If the saved location no longer holds a Lodestone (or landmark block), the stale data
+is cleaned immediately before any GUI or hologram logic runs. This is the catch-all
+for any future destruction path not explicitly covered by an event listener.
+
+BLOCK PLACEMENT SAFETY:
+When a player places a new block where ghost Pinpoint data exists and then right-clicks
+it, the stale guard in WaypointInteractListener fires: the placed block is not a
+Lodestone (or is a Lodestone but untagged — same check), so the old data is purged and
+the interaction is silently dropped. No GUI, no hologram, no old owner data reused.

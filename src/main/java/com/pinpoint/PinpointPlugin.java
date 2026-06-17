@@ -15,6 +15,7 @@ import com.pinpoint.item.ItemManager;
 import com.pinpoint.listeners.BlockBreakListener;
 import com.pinpoint.listeners.BlockPlaceListener;
 import com.pinpoint.listeners.ChatInputListener;
+import com.pinpoint.listeners.ExplosionListener;
 import com.pinpoint.listeners.PartyListener;
 import com.pinpoint.listeners.NewcomerListener;
 import com.pinpoint.listeners.TeleportCancelListener;
@@ -95,6 +96,7 @@ public class PinpointPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new WaypointInteractListener(this), this);
         getServer().getPluginManager().registerEvents(new BlockPlaceListener(this), this);
         getServer().getPluginManager().registerEvents(new BlockBreakListener(this), this);
+        getServer().getPluginManager().registerEvents(new ExplosionListener(this), this);
         getServer().getPluginManager().registerEvents(new TeleportCancelListener(this), this);
         getServer().getPluginManager().registerEvents(chatInputListener, this);
         getServer().getPluginManager().registerEvents(new PartyListener(this), this);
